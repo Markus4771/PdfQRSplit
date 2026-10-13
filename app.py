@@ -276,8 +276,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     ident=int(get("id"))
                     values=check(data,shares())
-                    if values[13] and not values[3]:
-                        raise ValueError("DATEV-Modus erfordert QR-Trennung; QR-Trennblätter dürfen erhalten bleiben")
+                    if "datev_mode" in data and "qr_split" not in data:
+                        raise ValueError("DATEV-Modus benötigt QR-Code-Trennung. Übermittelt: qr_split=aus, datev_mode=an. Bitte QR-Trennung im selben Profilformular aktivieren.")
                     if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[13])).fetchone():
                         raise ValueError("DATEV-Ausgang muss exklusiv sein")
                     archive=values[14]
