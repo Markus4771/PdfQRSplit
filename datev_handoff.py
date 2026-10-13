@@ -31,7 +31,10 @@ def publish_datev(generated,destination,registry,source):
             target=destination/filename
             con.execute("BEGIN IMMEDIATE")
             try:
-                if con.execute("SELECT 1 FROM datev_invoices WHERE digest=?",(digest,)).fetchone():
+                existing=con.execute("SELECT state FROM datev_invoices WHERE digest=?",(digest,)).fetchone()
+                if existing:
+                    if existing[0] != "published":
+                        raise RuntimeError(f"DATEV-Übergabe unklar (reserviert): {filename}; manuelle Kontrolle erforderlich")
                     duplicates.append(filename)
                     con.commit()
                     continue
