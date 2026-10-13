@@ -11,6 +11,7 @@ from PIL import Image
 from pyzbar.pyzbar import decode as decode_barcodes
 from scan_pdf_cleaner import remove_blank_pages, crop_pdf_margins
 from safe_publish import publish
+from datev_handoff import publish_datev
 
 def separators(source, expected):
     matches=[]
@@ -82,6 +83,9 @@ def run(source, out_dir, qr_text, options, output_stem=None):
             staged.write_bytes(current.read_bytes())
             generated.append((staged,final))
         # Hard-link fully staged files into place, without exposing partial PDFs.
+        if options.get("datev_mode"):
+            handed=publish_datev(generated,target,options.get("datev_registry","/var/lib/qrscan/datev.sqlite3"),source)
+            return {"source":str(source),"qr_pages":[x+1 for x in markers],**handed,"datev_mode":True}
         publish(generated,target)
     return {"source":str(source),"qr_pages":[x+1 for x in markers],"outputs":[str(f) for _,f in generated]}
 
