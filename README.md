@@ -212,3 +212,17 @@ Noch auf Debian 13 zu prüfen: Samba-Benutzer erstellen, Anmeldung, Dateirechte,
 ## Zwei Samba-Freigaben mit demselben Benutzer
 
 Beim Anlegen einer weiteren Freigabe denselben SMB-Benutzer und dessen vorhandenes Passwort eingeben. Die Passwortprüfung verwendet nun echte Zeilenumbrüche in der geschützten `smbclient`-Anmeldedatei. Bei bereits vorhandenen Freigaben im Abschnitt „Samba-Freigaben“ den gewünschten Freigabeneintrag bearbeiten: im Feld „Auf vorhandenen SMB-Benutzer umstellen“ den Benutzer der ersten Freigabe und im Passwortfeld dessen Passwort eintragen und speichern. Der alte SMB-Benutzer wird nicht gelöscht. **Wichtig:** Ein Samba-Passwort gehört zum Benutzer, nicht zu einer einzelnen Freigabe; ein Passwortwechsel betrifft alle Freigaben dieses Benutzers. Die Formulare übertragen Passwörter derzeit über die Webverbindung; nur im geschützten Testnetz verwenden und TLS vor Produktivbetrieb ergänzen.
+
+## QR-Trennung diagnostizieren (Praxisbefund vom 13.10.2026)
+
+Im Praxisprotokoll wurden 20 PDF-Testdateien vom Profil `Test` in `Eingabe-Test` verarbeitet, aber für jede Datei nur **ein** Ergebnis ausgegeben. In SQLite wurde `qr_split=1` und der QR-Text `SCAN-TRENNUNG-001` nachgewiesen. Noch ist **nicht bewiesen**, ob der QR-Inhalt in den PDFs abweicht oder die QR-Erkennung fehlschlägt.
+
+Das neue Nur-Leseprogramm zeigt QR-Inhalte und Seitenzahlen ohne Dokumente zu verändern:
+
+```bash
+/opt/qrscan/venv/bin/python /opt/qrscan/diagnose_qr.py \
+  /srv/samba-shares/Eingabe-Test/01_standard_3_teile.pdf \
+  --qr-text 'SCAN-TRENNUNG-001'
+```
+
+Achtung: QR-Inhalte können vertrauliche Daten enthalten; Ausgabe nicht ungeprüft öffentlich teilen. Für die Diagnose nicht nochmals die bereits verarbeiteten Dateien im Eingang neu anstoßen; vorhandene Ausgabe-Dateinamen würden sonst kollidieren.
