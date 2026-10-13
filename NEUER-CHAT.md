@@ -118,3 +118,7 @@ Praxisausgabe: Bei diversen Dateien `replay_count=0`, Status `error`, weil `Ausg
 ## DATEV-Sicherheitsmodus (Entwicklungsstand)
 
 Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen dauerhaftes separates Register `/var/lib/qrscan/datev.sqlite3` prüfen, zunächst reservieren, dann per Hardlink nur einmal ablegen. Bei unbestätigtem Absturz bleibt `reserved` und blockiert Wiederholung (fail-closed). `worker.py` verwendet es nur im aktivierten DATEV-Profil; mehrseitige PDFs ohne gültige Trenncodes werden im DATEV-Modus zurückgehalten. `profile_settings.py` enthält `datev_mode` als Profilflag, `app.py` stellt Schalter und Ausgangs-Exklusivprüfung bereit, `watcher.py` übergibt das Flag. `install.sh` installiert Modul und Test. Noch keine Belegbild-/OCR-Dublettenprüfung, keine Quittung von DATEV, keine automatische Überwachung Windows-PC. Bis zur Prüfung nicht produktiv verwenden. Ein DATEV-Übergabeverzeichnis darf nicht von mehreren DATEV-PCs gleichzeitig überwacht werden.
+
+## Fluent Bit Vorstufe
+
+`install_fluent_bit.sh` über `install.sh` integriert: lokaler Listener `127.0.0.1:24224`, separater systemd-Dienst, Null-Ausgang. Noch keine DATEV-Protokolle, TLS-Client-Zertifikate oder Windows-Quellen konfiguriert. Nicht produktiv freigeben; Tests auf Zielserver offen.
