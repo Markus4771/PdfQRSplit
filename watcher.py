@@ -54,7 +54,6 @@ def connect():
         con.execute("ALTER TABLE jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
     if "next_retry" not in columns:
         con.execute("ALTER TABLE jobs ADD COLUMN next_retry TEXT")
-    con.execute("UPDATE jobs SET status='interrupted',details='Abbruch: Ausgabe manuell prüfen' WHERE status='running'")
     con.commit()
     return con
 
@@ -130,6 +129,9 @@ def main():
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
     seen={}
+    with connect() as con:
+        con.execute("UPDATE jobs SET status='interrupted',details='Dienstneustart: Ausgaben manuell prüfen',updated_at=CURRENT_TIMESTAMP WHERE status='running'")
+        con.commit()
     logging.info("Profile watcher started; sources preserved; interval=%ss",INTERVAL)
     while not STOP:
         try:
