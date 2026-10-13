@@ -116,6 +116,10 @@ def once(con,profile,shares,seen):
                     continue
             manual_replay=bool(row and replay_count>0)
             opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches[:5])))
+            opts["datev_mode"]=bool(switches[10])
+            if opts["datev_mode"] and any(other[0]!=ident and other[3]==out_share for other in configs(con)):
+                logging.error("DATEV profile %s: destination share also used by another profile",name)
+                continue
             opts.update(blank_threshold=switches[5],languages=switches[6],output_type=switches[7],rotate_pages=bool(switches[8]),deskew=bool(switches[9]))
             qr=con.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
             if row:
