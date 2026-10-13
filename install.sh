@@ -13,7 +13,7 @@ apt-get install -y --no-install-recommends \
   build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
   poppler-utils ghostscript qpdf imagemagick default-jre-headless \
   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
-  samba smbclient acl python3-cryptography sudo
+  samba smbclient acl python3-cryptography sudo git curl
 echo "[2/7] Benutzer und Verzeichnisse"
 getent group qrscan-share-read >/dev/null || groupadd --system qrscan-share-read
 id -u qrscan >/dev/null 2>&1 || useradd --system --home-dir /var/lib/qrscan --shell /usr/sbin/nologin qrscan
