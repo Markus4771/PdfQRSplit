@@ -126,3 +126,7 @@ Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen da
 ## DATEV: erneut gescannte Rechnungen
 
 `datev_visual.py` neu mit visuellen 256-bit Seiten-Fingerabdrücken. `datev_handoff.py` speichert diese pro reserviertem Beleg und blockiert ähnliche PDF-Belege gleicher Seitenzahl vor Bereitstellung; Verdachtsfälle landen in `datev_suspects` und Auftrag `error`, Eingangs-PDF bleibt vorhanden. Exakte Byte-Dubletten via SHA-256 unverändert. Installer installiert Modul und Tests. Keine OCR-Rechnungsnummernprüfung, keine visuelle Backfill alter DATEV-Registereinträge, kein automatischer manueller Freigabeworkflow; Fehlalarme und nicht erkannte Dubletten möglich. Nicht produktiv verwenden ohne Tests mit echten Rechnungen.
+
+## DATEV-Quarantäne
+
+`datev_handoff.py` legt bei visuellem Dublettenverdacht die **einzelne fertig verarbeitete Rechnung**, nicht das gesamte Scan-Batch, unter `/var/lib/qrscan/datev-review/verdacht_<digest>.pdf` ab, außerhalb des Samba-DATEV-Zielordners. Registerspalte `datev_suspects.review_path` wird migriert. Kein PDF im DATEV-Ausgang; Originalscan bleibt unangetastet. `app.py` zeigt unter `/datev-review` eine read-only Übersicht; kein unkontrollierter Freigabeknopf. Installer erzeugt geschützten Quarantäneordner (0700) und `test_datev_visual.py` prüft die Dateisicherung. Noch nicht auf Debian praktisch validiert.
