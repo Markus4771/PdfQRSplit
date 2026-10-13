@@ -236,3 +236,17 @@ Die QR-Trennung prüft bereits jeden dekodierten QR-Code auf **exakte Übereinst
 Update: `git pull --ff-only && bash install.sh` im Repositoryverzeichnis. Änderungen an der Datenbank sind automatisch und erhalten bestehende Aufträge. Verhalten auf dem Zielsystem praktisch testen.
 
 Update 13.10.2026: Der Button **Verarbeitung wiederholen** startet mit einem Klick unmittelbar die Wiederholungsanforderung; die zusätzliche Bestätigungs-Checkbox wurde entfernt. Der laufende Watcher verarbeitet den Auftrag im nächsten Durchlauf automatisch. Ausgabedateien bleiben geschützt und bekommen eindeutige Wiederholungsnamen.
+
+## Automatische Wiederholungen bei vorübergehenden Fehlern
+
+Seit Oktober 2026 versucht der Watcher bei bestimmten **vorübergehenden technischen Fehlern** eine Verarbeitung selbstständig erneut, insgesamt höchstens **fünf Verarbeitungsversuche** (einschließlich Erstversuch). Wartezeiten nach Fehlschlägen: **1, 2, 5 und 10 Minuten**. Status `retry` und Zeitpunkt des nächsten Versuchs erscheinen in der Auftragsübersicht; nach Erreichen des Limits wird `error` angezeigt. Fehler wie bestehende Ausgabedateien, Zugriffsverweigerung oder ungültige Dokumentdaten lösen **keine** Endlosschleife aus. Die Wiederholung benötigt eine noch vorhandene, unveränderte Eingangsdatei. Für manuell wiederholte Aufträge bleibt bei späteren automatischen Versuchen der separate Wiederholungsname erhalten.
+
+Ein QR-Code, der **nicht exakt** dem eingestellten Trenntext entspricht, ist **kein Fehler**: Er wird für die Trennung ignoriert, und die übrigen aktivierten Verarbeitungsschritte laufen weiter. Nach erfolgreicher Verarbeitung erfolgt keine automatische Wiederholung.
+
+Update:
+```bash
+cd /root/PdfQRSplit
+git pull --ff-only
+bash install.sh
+systemctl status qrscan-watcher --no-pager
+```
