@@ -68,3 +68,7 @@ Neuer `watcher.py` und `qrscan-watcher.service` im Installer. Liest die Profil-S
 ## Punkt 6 – 13.10.2026
 
 Nichtdestruktiver Installations-Selbsttest `selftest.py` ergänzt; `install.sh` legt ihn im Zielsystem ab und gibt den Testbefehl aus. Der Code ist auf GitHub, aber ein echter Debian-13-Test ist hier mangels Server/DNS nicht durchgeführt worden. Kritische verbleibende Lücke: Der Samba-Helfer aus Punkt 4 ist noch nicht privilegiert angebunden; GUI und Helfer verwenden unterschiedliche Share-Konfigurationsdateien. Vor End-to-End-Freigabe vereinheitlichen und testen.
+
+## Samba GUI verbunden
+
+Die Web-GUI enthält jetzt Samba-Formulare; `samba_helper.py` ist über eine eingeschränkte sudo-Regel aus `install.sh` angebunden. Alle Komponenten referenzieren `/etc/samba/qrscan-shares.conf`, getrennt von Stirling. Gemeinsame SMB-Benutzer sind bei übereinstimmendem Passwort vorgesehen. Noch ohne Debian-13-Live-Test, daher nicht produktiv freigeben.
