@@ -3,6 +3,7 @@ import hashlib
 import os
 import sqlite3
 from pathlib import Path
+from datev_visual import fingerprints,near,encode,decode
 
 def ensure(con):
     con.execute("""CREATE TABLE IF NOT EXISTS datev_invoices(
@@ -11,6 +12,14 @@ def ensure(con):
         source TEXT,
         state TEXT NOT NULL DEFAULT 'reserved',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+
+    columns={r[1] for r in con.execute("PRAGMA table_info(datev_invoices)")}
+    if "visual" not in columns:
+        con.execute("ALTER TABLE datev_invoices ADD COLUMN visual TEXT")
+    con.execute("""CREATE TABLE IF NOT EXISTS datev_suspects(
+        digest TEXT PRIMARY KEY, source TEXT, matching_digest TEXT,
+        visual TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )""")
 
 def publish_datev(generated,destination,registry,source):
@@ -27,6 +36,7 @@ def publish_datev(generated,destination,registry,source):
                 raise ValueError("Leere DATEV-Ausgabe")
             with staged.open("rb") as stream:
                 digest=hashlib.file_digest(stream,"sha256").hexdigest()
+            visual=fingerprints(staged)
             filename=f"beleg_{digest}.pdf"
             target=destination/filename
             con.execute("BEGIN IMMEDIATE")
@@ -38,9 +48,18 @@ def publish_datev(generated,destination,registry,source):
                     duplicates.append(filename)
                     con.commit()
                     continue
+                prior=con.execute("SELECT digest,visual FROM datev_invoices WHERE visual IS NOT NULL").fetchall()
+                suspect=next((key for key,stored in prior if near(visual,decode(stored))),None)
+                if suspect is None:
+                    held=con.execute("SELECT digest,visual FROM datev_suspects").fetchall()
+                    suspect=next((key for key,stored in held if near(visual,decode(stored))),None)
+                if suspect:
+                    con.execute("INSERT OR IGNORE INTO datev_suspects(digest,source,matching_digest,visual) VALUES (?,?,?,?)",(digest,str(source),suspect,encode(visual)))
+                    con.commit()
+                    raise ValueError(f"DATEV-Dublettenverdacht: Beleg {digest[:12]} ähnelt {suspect[:12]}; keine Übergabe")
                 if target.exists() or target.is_symlink():
                     raise FileExistsError(f"DATEV-Datei existiert ohne Registereintrag: {target}")
-                con.execute("INSERT INTO datev_invoices(digest,filename,source,state) VALUES (?,?,?,'reserved')",(digest,filename,str(source)))
+                con.execute("INSERT INTO datev_invoices(digest,filename,source,state,visual) VALUES (?,?,?,'reserved',?)",(digest,filename,str(source),encode(visual)))
                 con.commit()
             except BaseException:
                 con.rollback()
