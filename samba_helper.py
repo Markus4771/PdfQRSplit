@@ -60,7 +60,7 @@ def main():
     action=request.get("action")
     entries=read()
     if action=="list":
-        print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no"} for n,v in sorted(entries.items())]}));return
+        print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no","datev_protected":v.get("comment")=="QRSCAN-DATEV-READONLY"} for n,v in sorted(entries.items())]}));return
     name=request.get("name","")
     if not isinstance(name,str) or not NAME.fullmatch(name):fail("Ungültiger Freigabename")
     if action=="create":
@@ -85,8 +85,13 @@ def main():
         path.mkdir(mode=0o2770,parents=False)
         os.chown(path,pwd.getpwnam("qrscan").pw_uid,pwd.getpwnam("qrscan").pw_gid)
         os.chmod(path,0o2770)
-        entries[name]={"path":str(path),"browseable":"yes","read only":"no" if request.get("writable",True) else "yes",
+        datev=bool(request.get("datev_protected",False))
+        entries[name]={"path":str(path),"browseable":"yes","read only":"yes" if datev else ("no" if request.get("writable",True) else "yes"),
                        "valid users":user,"force user":"qrscan","create mask":"0660","directory mask":"2770"}
+        if datev:
+            entries[name]["comment"]="QRSCAN-DATEV-READONLY"
+            entries[name]["veto files"]="/qrscan-*/"
+            entries[name]["hide unreadable"]="yes"
         write(entries)
     elif action=="update":
         if name not in entries:fail("Freigabe fehlt")
@@ -100,7 +105,21 @@ def main():
                     fail("Der neue SMB-Benutzer muss bereits in einer anderen verwalteten Freigabe existieren")
                 verify_user(new_user,password)
                 entries[name]["valid users"]=new_user
-        entries[name]["read only"]="no" if request.get("writable",True) else "yes"
+        if entries[name].get("comment")=="QRSCAN-DATEV-READONLY":
+            entries[name]["read only"]="yes"
+        else:
+            entries[name]["read only"]="no" if request.get("writable",True) else "yes"
+        write(entries)
+    elif action=="protect-datev":
+        if name not in entries:fail("Freigabe fehlt")
+        values=entries[name]
+        path=Path(values.get("path",""))
+        if path.is_symlink() or not path.is_dir() or path.resolve().parent!=ROOT.resolve():
+            fail("Ungültiger DATEV-Ausgang")
+        values["read only"]="yes"
+        values["comment"]="QRSCAN-DATEV-READONLY"
+        values["veto files"]="/qrscan-*/"
+        values["hide unreadable"]="yes"
         write(entries)
     elif action=="password":
         if name not in entries:fail("Freigabe fehlt")
