@@ -164,3 +164,7 @@ Neues Profilfeld `archive_share` in `profile_settings.py`, DB-Migration und Drop
 ## DATEV-Profil QR-Prüfung: Diagnose (14.10.2026)
 
 Bei Profiländerungen prüft `app.py` nun unmittelbar die übermittelten Formularfelder `qr_split` und `datev_mode`, statt Tupelindizes zu verwenden. Wenn trotz aktivierter QR-Code-Trennung eine Fehlermeldung erscheint, `/opt/qrscan/app.py` auf dem Zielsystem aktualisieren und `qrscan-web` neu starten (via `git pull --ff-only && bash install.sh`). Die neue Fehlermeldung zeigt explizit `qr_split=aus, datev_mode=an`, wenn der Server die QR-Checkbox nicht erhält. QR-Trennblätter entfernen bleibt optional.
+
+## 14.10.2026 – Fluent-Bit-APT-Indexfehler blockierte install.sh
+
+User meldete Debian Trixie `Packages.bz2` unerwartete Größe und Hashabweichung. `install.sh` toleriert jetzt Ausfall des **optionalen** Fluent-Bit-Schritts und deaktiviert bei kaputtem Paketindex ausschließlich `/etc/apt/sources.list.d/fluent-bit.list` in `.list.disabled`; initiales `apt-get update` kann die defekte Fluent-Bit-Quelle ebenfalls gezielt deaktivieren und erneut versuchen. Niemals APT-Hash-/Signaturprüfung abschalten. `qrscan-web` lief, aber `grep -n 'Übermittelt: qr_split' /opt/qrscan/app.py` zeigte noch keinen Treffer; nach `git pull --ff-only && bash install.sh` prüfen. Fluent Bit bleibt ohne Windows-Agent optional und noch ohne DATEV-Logauswertung.
