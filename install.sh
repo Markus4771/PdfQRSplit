@@ -25,6 +25,8 @@ install -m 0755 app.py /opt/qrscan/app.py
 install -m 0755 worker.py /opt/qrscan/worker.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
 install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
+install -m 0755 selftest.py /opt/qrscan/selftest.py
+install -m 0755 samba_helper.py /opt/qrscan/samba_helper.py
 install -m 0755 sync_permissions.py /opt/qrscan/sync_permissions.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
@@ -119,4 +121,6 @@ systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
 echo "Nach dem Anlegen von Profilen einmal: sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py"
-echo "Produktivbetrieb erst nach Test! Samba-GUI und Wiederherstellung abgebrochener Jobs stehen noch aus."
+echo "Selbsttest: sudo /opt/qrscan/venv/bin/python /opt/qrscan/selftest.py"
+echo "Achtung: Samba-Helfer ist noch nicht privilegiert freigeschaltet/in die GUI eingebunden."
+echo "Produktivbetrieb erst nach vollständigem Debian-13- und Samba-Integrationstest!"
