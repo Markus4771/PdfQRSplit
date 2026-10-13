@@ -75,15 +75,16 @@ chmod 0644 /etc/samba/qrscan-shares.conf
 python3 - <<'PY'
 from pathlib import Path
 import re
-p=Path("/etc/samba/smb.conf")
-data=p.read_text()
-line="   include = /etc/samba/qrscan-shares.conf"
-if str(Path("/etc/samba/qrscan-shares.conf")) not in data:
-    if not re.search(r"(?im)^\\s*\\[global\\]\\s*$",data):
-        raise SystemExit("Samba [global] fehlt")
-    backup=Path("/etc/samba/smb.conf.bak-qrscan")
-    if not backup.exists():backup.write_text(data)
-    data=re.sub(r"(?im)^(\\s*\\[global\\]\\s*)$",lambda m:m.group(1)+"\\n"+line,data,count=1)
+p = Path("/etc/samba/smb.conf")
+data = p.read_text()
+include = "include = /etc/samba/qrscan-shares.conf"
+if include not in data:
+    if not re.search(r"(?im)^\s*\[global\]\s*$", data):
+        raise SystemExit("Samba [global] fehlt in /etc/samba/smb.conf")
+    backup = Path("/etc/samba/smb.conf.bak-qrscan")
+    if not backup.exists():
+        backup.write_text(data)
+    data = re.sub(r"(?im)^(\s*\[global\]\s*)$", lambda m: m.group(1) + "\n   " + include, data, count=1)
     p.write_text(data)
 PY
 testparm -s >/dev/null
