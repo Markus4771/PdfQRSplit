@@ -1,0 +1,21 @@
+name: Debian 13 checks
+on:
+  push:
+  pull_request:
+jobs:
+  debian13:
+    runs-on: ubuntu-latest
+    container: debian:13
+    steps:
+      - name: Install test prerequisites
+        run: |
+          apt-get update
+          apt-get install -y git ca-certificates python3 python3-pip python3-pytest python3-pymupdf python3-pil python3-pyzbar libzbar0 bash
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check shell and Python syntax
+        run: |
+          bash -n install.sh
+          python3 -m compileall -q app.py watcher.py worker.py jobs_ui.py samba_helper.py sync_permissions.py selftest.py profile_settings.py safe_publish.py
+      - name: Execute PDF publisher regression suite
+        run: python3 -m unittest -v test_safe_publish.py
