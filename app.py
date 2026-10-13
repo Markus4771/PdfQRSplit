@@ -216,13 +216,24 @@ class Handler(BaseHTTPRequestHandler):
                 name=get("name").strip();inp=get("input");out=get("output")
                 if not NAME.fullmatch(name) or inp not in shares() or out not in shares() or inp==out:return self.page("Ungültige Profil- oder Freigabenauswahl",400)
                 values=[int(k in data) for k in FIELDS]
-                try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr) VALUES (?,?,?,?,?,?,?,?)",(name,inp,out,*values))
+                datev=int("datev_mode" in data)
+                if datev and not ("qr_split" in data and "remove_separators" in data):
+                    return self.page("DATEV-Modus benötigt QR-Trennung und Entfernung der Trennseiten",400)
+                if datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? LIMIT 1",(out,)).fetchone():
+                    return self.page("DATEV-Ausgang muss exklusiv sein",409)
+                if not datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? AND datev_mode=1 LIMIT 1",(out,)).fetchone():
+                    return self.page("Ausgang bereits für DATEV reserviert",409)
+                try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,datev_mode) VALUES (?,?,?,?,?,?,?,?,?)",(name,inp,out,*values,datev))
                 except sqlite3.IntegrityError:return self.page("Profilname schon vorhanden",409)
             elif self.path=="/profile-update":
                 try:
                     ident=int(get("id"))
                     values=check(data,shares())
-                    c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=? WHERE id=?",(*values,ident))
+                    if values[-1] and (not values[4] or not values[5]):
+                        raise ValueError("DATEV-Modus erfordert QR-Trennung und Entfernung von QR-Trennseiten")
+                    if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[-1])).fetchone():
+                        raise ValueError("DATEV-Ausgang muss exklusiv sein")
+                    c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=? WHERE id=?",(*values,ident))
                 except (ValueError,sqlite3.IntegrityError) as exc:
                     return self.page("Profil ungültig: "+html.escape(str(exc)),400)
             elif self.path=="/delete":
