@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Monitor Samba input shares and execute profile-based PDF processing."""
 import hashlib
+import fcntl
+import tempfile
+import shutil
 import datetime
 import logging
 import os
@@ -66,6 +69,7 @@ def fingerprint(path, st, profile_id):
     # A stable file identity, avoids repeat processing after watcher restart.
     digest=hashlib.sha256()
     digest.update(str(profile_id).encode())
+    digest.update(str(path.resolve()).encode())
     with path.open("rb") as f:
         for chunk in iter(lambda:f.read(1024*1024),b""):digest.update(chunk)
     return digest.hexdigest()
@@ -91,6 +95,8 @@ def once(con,profile,shares,seen):
             with fitz.open(path) as doc:
                 if doc.page_count<1:continue
             digest=fingerprint(path,stat,ident)
+            latest=path.stat()
+            if (stat.st_ino,stat.st_size,stat.st_mtime_ns)!=(latest.st_ino,latest.st_size,latest.st_mtime_ns):continue
             row=con.execute("SELECT status,attempts,next_retry FROM jobs WHERE signature=?",(digest,)).fetchone()
             if row:
                 status,attempts,next_retry=row
@@ -110,7 +116,20 @@ def once(con,profile,shares,seen):
                 # Re-check source just before using it; source is never deleted.
                 fresh=path.stat()
                 if (fresh.st_size,fresh.st_mtime_ns)!=signature:raise RuntimeError("Source changed during preparation")
-                result=run(path,destination,qr,opts)
+                with tempfile.TemporaryDirectory(prefix="scanjob-",dir=DATA) as scratch:
+                    snapshot=Path(scratch)/path.name
+                    shutil.copyfile(path,snapshot)
+                    latest=path.stat()
+                    if (stat.st_ino,stat.st_size,stat.st_mtime_ns)!=(latest.st_ino,latest.st_size,latest.st_mtime_ns):
+                        raise RuntimeError("Scanner updated source during snapshot")
+                    def file_hash(file):
+                        h=hashlib.sha256()
+                        with open(file,"rb") as stream:
+                            for chunk in iter(lambda:stream.read(1024*1024),b""):h.update(chunk)
+                        return h.digest()
+                    if file_hash(path)!=file_hash(snapshot):
+                        raise RuntimeError("Source differs from snapshot")
+                    result=run(snapshot,destination,qr,opts,output_stem=path.stem)
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(result),digest))
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
@@ -132,6 +151,9 @@ def main():
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
     seen={}
+    lock_fd=os.open(DATA/'watcher.lock',os.O_RDWR|os.O_CREAT,0o600)
+    try:fcntl.flock(lock_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
+    except BlockingIOError:raise SystemExit('Watcher already running')
     with connect() as con:
         con.execute("UPDATE jobs SET status='interrupted',details='Dienstneustart: Ausgaben manuell prüfen',updated_at=CURRENT_TIMESTAMP WHERE status='running'")
         con.commit()
