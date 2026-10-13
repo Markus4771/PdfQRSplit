@@ -105,3 +105,11 @@ sudo journalctl -u qrscan-watcher -f
 **Zugriffsrechte:** Der eigene Benutzer `qrscan` muss die Eingangspfad-Verzeichnisse lesen und betreten dürfen. Die Installation verändert deren bestehenden Eigentümer/ACLs bewusst nicht. Werden Fehler `Permission denied` oder `Input share not accessible` protokolliert, müssen die betreffenden Pfade und ACLs zunächst für `qrscan` freigegeben werden. Dies ist kein Freigabenmanager und ersetzt die spätere Rechteintegration nicht.
 
 **Offen:** Profile tatsächlich ausführen, Dateistabilität zusätzlich durch Datei-Öffnungs- und PDF-Lesbarkeitstests verifizieren, Dateijobs persistent speichern, Fehler- und Wiederholungsverarbeitung, Integration des vollständigen Samba-Editors.
+
+## Automatische Profil-Verarbeitung (Schritt 2; experimentell)
+
+`qrscan-watcher.service` startet nach Installation den PDF-Worker für neue, ausreichend lange unveränderte Dateien in den gespeicherten Eingangsfreigaben. Der Dienst lädt SQLite-Profile (Eingang, Ausgang, QR-Trennblätter, Leerseiten, Rand, OCR), liest den globalen QR-Text, prüft PDF-Lesbarkeit und legt Ergebnisse in der zugeordneten Ausgangsfreigabe ab. Mindestwartezeit: 30 Sekunden; Pollingintervall: 5 Sekunden. Eingangsdateien bleiben erhalten. Jobs werden in SQLite (`jobs`) mit Status `running`, `done`, `error` protokolliert. Identische Dateien desselben Profils werden nach einem Neustart nicht nochmals verarbeitet.
+
+**Sicherheit und Einschränkungen:** Noch kein vollständiger Integrationstest auf Debian mit Samba-Rechten. Der `qrscan`-Dienstbenutzer braucht Lesezugriff auf Eingänge und Schreibzugriff auf Ausgänge. Bei Fehlern erfolgt derzeit **kein automatischer Retry**, sondern die Fehlerzeile bleibt für spätere Analyse in der Datenbank. Bei Absturz können Einträge auf `running` verbleiben. Das Verhalten bei gleichzeitigem Dateischreiben muss mit echten Scannerdateien geprüft werden. Original-PDFs werden nicht entfernt. Die GUI zeigt Jobstatus noch nicht an. Vor produktivem Einsatz Backup und Test mit Beispieldokumenten durchführen.
+
+Das alte Read-only-Watcher-Verhalten aus Schritt 1 gilt nach diesem Update nicht mehr. Sobald ein geeignetes Profil eingerichtet ist und der Dienst Zugriff hat, wird die PDF-Verarbeitung automatisch angestoßen.
