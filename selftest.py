@@ -42,7 +42,7 @@ def db_check():
 
 def samba_check():
     # The app requires existing managed shares. In a fresh install this can be absent.
-    p=Path("/etc/samba/share-manager.conf")
+    p=Path("/etc/samba/qrscan-shares.conf")
     if not p.exists():raise RuntimeError("Noch keine verwalteten Freigaben vorhanden – Samba-GUI-Integration ausstehend")
     return True
 
