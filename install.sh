@@ -13,7 +13,7 @@ apt-get install -y --no-install-recommends \
   build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
   poppler-utils ghostscript qpdf imagemagick default-jre-headless \
   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
-  samba smbclient acl python3-cryptography
+  samba smbclient acl python3-cryptography sudo
 echo "[2/7] Benutzer und Verzeichnisse"
 getent group qrscan-share-read >/dev/null || groupadd --system qrscan-share-read
 id -u qrscan >/dev/null 2>&1 || useradd --system --home-dir /var/lib/qrscan --shell /usr/sbin/nologin qrscan
@@ -26,7 +26,8 @@ install -m 0755 worker.py /opt/qrscan/worker.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
 install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0755 selftest.py /opt/qrscan/selftest.py
-install -m 0755 samba_helper.py /opt/qrscan/samba_helper.py
+install -d -o root -g root -m 0755 /usr/local/lib/qrscan
+install -m 0755 -o root -g root samba_helper.py /usr/local/lib/qrscan/samba_helper.py
 install -m 0755 sync_permissions.py /opt/qrscan/sync_permissions.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
@@ -60,10 +61,33 @@ fi
 echo "[6/7] Samba-Leseanbindung (bestehende Samba-Konfiguration nicht überschreiben)"
 # Der bestehende Samba-Manager kann bereits konfiguriert sein. Seine Include-Datei wird
 # lediglich für die QR-GUI lesbar gemacht; es werden keine Freigaben angelegt oder geändert.
-if [[ -f /etc/samba/share-manager.conf ]]; then
-  chgrp qrscan-share-read /etc/samba/share-manager.conf
-  chmod 0640 /etc/samba/share-manager.conf
+if [[ -f /etc/samba/qrscan-shares.conf ]]; then
+  chgrp qrscan-share-read /etc/samba/qrscan-shares.conf
+  chmod 0640 /etc/samba/qrscan-shares.conf
 fi
+# Separate Samba include file, independent of the Stirling project.
+touch /etc/samba/qrscan-shares.conf
+chmod 0644 /etc/samba/qrscan-shares.conf
+python3 - <<'PY'
+from pathlib import Path
+import re
+p=Path("/etc/samba/smb.conf")
+data=p.read_text()
+line="   include = /etc/samba/qrscan-shares.conf"
+if str(Path("/etc/samba/qrscan-shares.conf")) not in data:
+    if not re.search(r"(?im)^\\s*\\[global\\]\\s*$",data):
+        raise SystemExit("Samba [global] fehlt")
+    backup=Path("/etc/samba/smb.conf.bak-qrscan")
+    if not backup.exists():backup.write_text(data)
+    data=re.sub(r"(?im)^(\\s*\\[global\\]\\s*)$",lambda m:m.group(1)+"\\n"+line,data,count=1)
+    p.write_text(data)
+PY
+testparm -s >/dev/null
+cat >/etc/sudoers.d/qrscan-samba <<'EOF'
+qrscan ALL=(root) NOPASSWD: /usr/local/lib/qrscan/samba_helper.py
+EOF
+chmod 0440 /etc/sudoers.d/qrscan-samba
+visudo -cf /etc/sudoers.d/qrscan-samba >/dev/null
 echo "[7/7] systemd-Dienst installieren"
 cat >/etc/systemd/system/qrscan-web.service <<'EOF'
 [Unit]
@@ -122,5 +146,5 @@ systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
 echo "Nach dem Anlegen von Profilen einmal: sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py"
 echo "Selbsttest: sudo /opt/qrscan/venv/bin/python /opt/qrscan/selftest.py"
-echo "Achtung: Samba-Helfer ist noch nicht privilegiert freigeschaltet/in die GUI eingebunden."
+echo "Samba-Verwaltung ist in der Web-GUI angebunden. Nur im geschützten Administrationsnetz nutzen."
 echo "Produktivbetrieb erst nach vollständigem Debian-13- und Samba-Integrationstest!"
