@@ -72,3 +72,7 @@ Nichtdestruktiver Installations-Selbsttest `selftest.py` ergänzt; `install.sh` 
 ## Samba GUI verbunden
 
 Die Web-GUI enthält jetzt Samba-Formulare; `samba_helper.py` ist über eine eingeschränkte sudo-Regel aus `install.sh` angebunden. Alle Komponenten referenzieren `/etc/samba/qrscan-shares.conf`, getrennt von Stirling. Gemeinsame SMB-Benutzer sind bei übereinstimmendem Passwort vorgesehen. Noch ohne Debian-13-Live-Test, daher nicht produktiv freigeben.
+
+## Profilbearbeitung und OCR-Optionen
+
+Neue Datei `profile_settings.py` mit Migration älterer SQLite-Profile, Formularen für die Bearbeitung und Eingabevalidierung. `app.py` speichert Änderungen, `watcher.py` überträgt OCR-Sprache, Ausgabeformat, Rotation/Deskew und Leerseiten-Schwellwert an `worker.py`. Installer kopiert die Datei. Noch kein Debian-13-Integrationstest.
