@@ -40,3 +40,11 @@ Die Codeprüfung zeigte spezielle Stirling-Pfade, Stirling-ACLs und eine eigene 
 ## Installer-Update
 
 `install.sh` installiert nun automatisch die Paket- und Python-Abhängigkeiten für alle vereinbarten Komponenten (inkl. Java/ZXing für PdfQRSplit, Scan PDF Cleaner, OCRmyPDF/Tesseract, Samba und Web-GUI). Es bleibt ein **experimenteller** Installer: keine PDF-Worker-Integration, kein vollständiger Samba-Manager, noch kein Debian-13-Livetest. Neue Installationen erstellen zufällige GUI-Zugangsdaten, Updates behalten vorhandene Passwörter.
+
+## PDF-Worker integriert (13.10.2026)
+- Neues `worker.py`: verarbeitet Einzel-PDFs via Rendern/pyzbar-QR-Erkennung, PyMuPDF-Aufteilung, `scan_pdf_cleaner` und `ocrmypdf` am Schluss.
+- QR-Trennblätter bleiben standardmäßig auf der ersten Seite des Folgedokuments, optionales Entfernen.
+- Ausgabe ohne Überschreiben, Eingangsdatei bleibt unberührt.
+- Installer kopiert den Worker und installiert notwendige Python-Abhängigkeiten.
+- **Noch nicht getestet auf Debian 13 oder mit realen Scans.**
+- **Noch offen:** Ausführung je gespeichertes GUI-Profil, automatische Eingangsordner-Überwachung, ACL- und Samba-Schreibrechte, Fehlermanagement, frei einstellbarer Leerseiten-Schwellenwert, vorsichtiger Crop-Test, testgestützte Qualitätssicherung.
