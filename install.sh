@@ -24,6 +24,7 @@ install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -d -o root -g root -m 0755 /srv/samba-shares
 install -m 0755 app.py /opt/qrscan/app.py
 install -m 0755 worker.py /opt/qrscan/worker.py
+install -m 0755 diagnose_qr.py /opt/qrscan/diagnose_qr.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
 install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0644 profile_settings.py /opt/qrscan/profile_settings.py
