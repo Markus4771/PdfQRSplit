@@ -113,7 +113,8 @@ if not re.search(r"(?im)^\s*\[global\]\s*$",data):
     raise SystemExit("Samba [global] fehlt; Konfiguration bleibt unverändert")
 # Remove every active occurrence, leave comments and all other parameters alone.
 lines=[line for line in data.splitlines(keepends=True)
-       if not re.fullmatch(r"\s*include\s*=\s*/etc/samba/qrscan-shares\.conf\s*",line,re.I)]
+       if not re.fullmatch(r"\s*include\s*=\s*/etc/samba/qrscan-shares\.conf\s*",line,re.I)
+       and line.strip()!="# PdfQRSplit managed shares; must remain after all global options and services"]
 candidate="".join(lines).rstrip()+"\n\n# PdfQRSplit managed shares; must remain after all global options and services\n"+include+"\n"
 if candidate.encode("utf-8")==original:
     print("Samba include already correct")
