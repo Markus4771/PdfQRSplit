@@ -65,7 +65,14 @@ def main():
         if linked:
             # Existing password verified against samba authentication using smbclient.
             # Do not change shared password when attaching a new share.
-            result=subprocess.run(["smbclient","-L","localhost","-U",user+"%"+password,"-m","SMB3"],capture_output=True,text=True,timeout=20)
+            fd,authfile=tempfile.mkstemp(prefix=".qrscan-auth-")
+            try:
+                with os.fdopen(fd,"w") as cred:
+                    cred.write("username = "+user+"\\npassword = "+password+"\\n")
+                os.chmod(authfile,0o600)
+                result=subprocess.run(["smbclient","-L","localhost","-A",authfile,"-m","SMB3"],capture_output=True,text=True,timeout=20)
+            finally:
+                os.unlink(authfile)
             if result.returncode:fail("Passwort für vorhandenen SMB-Benutzer stimmt nicht")
         else:
             try:pwd.getpwnam(user);fail("Benutzer existiert außerhalb dieses Managers")
