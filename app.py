@@ -276,16 +276,16 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     ident=int(get("id"))
                     values=check(data,shares())
-                    if values[14] and not values[4]:
+                    if values[13] and not values[3]:
                         raise ValueError("DATEV-Modus erfordert QR-Trennung; QR-Trennblätter dürfen erhalten bleiben")
-                    if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[14])).fetchone():
+                    if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[13])).fetchone():
                         raise ValueError("DATEV-Ausgang muss exklusiv sein")
-                    archive=values[15]
+                    archive=values[14]
                     if archive and c.execute("SELECT 1 FROM profiles WHERE id<>? AND (input_share=? OR output_share=? OR archive_share=?) LIMIT 1",(ident,archive,archive,archive)).fetchone():
                         raise ValueError("Original-Archiv-Freigabe wird bereits verwendet")
                     if c.execute("SELECT 1 FROM profiles WHERE id<>? AND archive_share IN (?,?) LIMIT 1",(ident,values[1],values[2])).fetchone():
                         raise ValueError("Eingang/Ausgang wird bereits als Archiv genutzt")
-                    if values[14]:
+                    if values[13]:
                         ensure_datev_samba_protection(values[2])
                         if archive:ensure_datev_samba_protection(archive)
                     c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=?,archive_share=? WHERE id=?",(*values,ident))
