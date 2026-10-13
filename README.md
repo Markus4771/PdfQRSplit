@@ -141,3 +141,19 @@ Für `error` und `interrupted` wird eine **manuelle Wiederholungsfreigabe** ange
 Eine frühere Fehlfunktion wurde behoben: `running`-Jobs werden jetzt ausschließlich beim **Start** des Watchers als möglicherweise unterbrochen gekennzeichnet, nicht bei jedem Polling-Durchlauf.
 
 **Noch offen:** Integrationstest auf Debian/Samba, Live-Aktualisierung der GUI, vollständige Ausgabe-/Seiten-Protokollierung und eine sicher verifizierte Wiederaufnahme von teilweise ausgegebenen Dokumenten. Das aktuelle Replay ist daher bewusst konservativ und kann bei bereits vorhandenen Zieldateien scheitern. Dieses Stadium bleibt experimentell.
+
+## Punkt 6 – Installations-Selbsttest (Debian 13)
+
+`selftest.py` überprüft die Python-Syntax, importierbare PDF-/QR-Bibliotheken, OCRmyPDF und Tesseract, `testparm`, SQLite-Schema, Dienstkonto sowie die aktiven Dienste. Der Test verändert keine Scans, Freigaben oder Benutzer.
+
+```bash
+git clone https://github.com/Markus4771/PdfQRSplit.git
+cd PdfQRSplit
+sudo bash install.sh
+sudo /opt/qrscan/venv/bin/python /opt/qrscan/selftest.py
+sudo journalctl -u qrscan-web -u qrscan-watcher -n 100 --no-pager
+```
+
+**Status:** Der Selbsttest ist implementiert, aber noch **nicht auf einem frischen Debian 13 ausgeführt**. Ein Sandbox-Checkout war mangels DNS/Netzwerk nicht möglich. Es gibt keinen Nachweis einer erfolgreichen Komplettinstallation.
+
+**Bekannter Blocker:** Auf einem frischen Debian ist die eigentliche Samba-Freigabenverwaltung noch nicht produktiv integriert. `samba_helper.py` liegt nur als noch nicht freigeschalteter Code vor; das GUI liest weiterhin `/etc/samba/share-manager.conf`, während der neue Helfer `/etc/samba/qrscan-shares.conf` verwenden würde. Diese Schnittstellen müssen vor dem Produktivtest vereinheitlicht und sicher angebunden werden. `selftest.py` meldet fehlende verwaltete Freigaben ausdrücklich. Auch QR-Trennung, Leerseitenerkennung, OCR und Netzwerk-Rechte müssen mit echten PDFs getestet werden.
