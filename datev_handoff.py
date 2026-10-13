@@ -21,11 +21,15 @@ def ensure(con):
         digest TEXT PRIMARY KEY, source TEXT, matching_digest TEXT,
         visual TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )""")
+    suspect_columns={r[1] for r in con.execute("PRAGMA table_info(datev_suspects)")}
+    if "review_path" not in suspect_columns:
+        con.execute("ALTER TABLE datev_suspects ADD COLUMN review_path TEXT")
 
 def publish_datev(generated,destination,registry,source):
     """Permanently reserve before publication; uncertain crash states do not resend."""
     destination=Path(destination)
     registry=Path(registry)
+    review_dir=registry.parent/"datev-review"
     sent=[]; duplicates=[]
     with sqlite3.connect(registry,timeout=30,isolation_level=None) as con:
         con.execute("PRAGMA synchronous=FULL")
@@ -54,9 +58,23 @@ def publish_datev(generated,destination,registry,source):
                     held=con.execute("SELECT digest,visual FROM datev_suspects").fetchall()
                     suspect=next((key for key,stored in held if near(visual,decode(stored))),None)
                 if suspect:
-                    con.execute("INSERT OR IGNORE INTO datev_suspects(digest,source,matching_digest,visual) VALUES (?,?,?,?)",(digest,str(source),suspect,encode(visual)))
+                    # Keep the *individual invoice*, not only its multi-invoice
+                    # source scan, in a private quarantine outside the DATEV
+                    # handoff share. Never overwrite existing review files.
+                    review_dir.mkdir(mode=0o700,parents=True,exist_ok=True)
+                    os.chmod(review_dir,0o700)
+                    review_file=review_dir/f"verdacht_{digest}.pdf"
+                    con.execute("""INSERT OR IGNORE INTO datev_suspects
+                        (digest,source,matching_digest,visual,review_path)
+                        VALUES (?,?,?,?,?)""",
+                        (digest,str(source),suspect,encode(visual),str(review_file)))
                     con.commit()
-                    raise ValueError(f"DATEV-Dublettenverdacht: Beleg {digest[:12]} ähnelt {suspect[:12]}; keine Übergabe")
+                    if not review_file.exists() and not review_file.is_symlink():
+                        os.link(staged,review_file,follow_symlinks=False)
+                        fd=os.open(review_dir,os.O_RDONLY|os.O_DIRECTORY)
+                        try:os.fsync(fd)
+                        finally:os.close(fd)
+                    raise ValueError(f"DATEV-Dublettenverdacht: Einzelbeleg in Prüfbereich {review_file}; keine DATEV-Übergabe")
                 if target.exists() or target.is_symlink():
                     raise FileExistsError(f"DATEV-Datei existiert ohne Registereintrag: {target}")
                 con.execute("INSERT INTO datev_invoices(digest,filename,source,state,visual) VALUES (?,?,?,'reserved',?)",(digest,filename,str(source),encode(visual)))
