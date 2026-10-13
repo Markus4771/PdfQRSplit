@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Monitor Samba input shares and execute profile-based PDF processing."""
 import hashlib
+import json
 import fcntl
 import tempfile
 import shutil
@@ -16,6 +17,7 @@ from pathlib import Path
 from worker import run
 from retry_policy import MAX_ATTEMPTS, should_retry, next_retry
 from output_naming import output_stem
+from jobs_ui import cleanup_jobs
 from profile_settings import migrate,SELECT
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
@@ -135,7 +137,7 @@ def once(con,profile,shares,seen):
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
                     result=run(snapshot,destination,qr,opts,output_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0)))
-                con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(result),digest))
+                con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(json.dumps(result,ensure_ascii=False),digest))
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
                 attempts=con.execute("SELECT attempts FROM jobs WHERE signature=?",(digest,)).fetchone()[0]
@@ -157,6 +159,7 @@ def main():
     signal.signal(signal.SIGTERM,stop);signal.signal(signal.SIGINT,stop)
     logging.basicConfig(level=logging.INFO,format="%(asctime)s %(levelname)s %(message)s")
     seen={}
+    last_cleanup=0.0
     lock_fd=os.open(DATA/'watcher.lock',os.O_RDWR|os.O_CREAT,0o600)
     try:fcntl.flock(lock_fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
     except BlockingIOError:raise SystemExit('Watcher already running')
@@ -167,6 +170,10 @@ def main():
     while not STOP:
         try:
             with connect() as con:
+                if time.monotonic()-last_cleanup>=3600:
+                    removed=cleanup_jobs(con)
+                    if removed:logging.info("Removed %d expired job records (PDF files unchanged)",removed)
+                    last_cleanup=time.monotonic()
                 shares=get_shares()
                 profiles=configs(con)
                 active={(p[0],str(shares[p[2]]/file.name)) for p in profiles if p[2] in shares for file in shares[p[2]].glob("*.pdf")}
