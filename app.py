@@ -252,8 +252,8 @@ class Handler(BaseHTTPRequestHandler):
                 if not NAME.fullmatch(name) or inp not in shares() or out not in shares() or inp==out:return self.page("Ungültige Profil- oder Freigabenauswahl",400)
                 values=[int(k in data) for k in FIELDS]
                 datev=int("datev_mode" in data)
-                if datev and not ("qr_split" in data and "remove_separators" in data):
-                    return self.page("DATEV-Modus benötigt QR-Trennung und Entfernung der Trennseiten",400)
+                if datev and "qr_split" not in data:
+                    return self.page("DATEV-Modus benötigt QR-Trennung; QR-Trennblätter dürfen erhalten bleiben",400)
                 if datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? LIMIT 1",(out,)).fetchone():
                     return self.page("DATEV-Ausgang muss exklusiv sein",409)
                 if not datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? AND datev_mode=1 LIMIT 1",(out,)).fetchone():
@@ -267,8 +267,8 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     ident=int(get("id"))
                     values=check(data,shares())
-                    if values[-1] and (not values[4] or not values[5]):
-                        raise ValueError("DATEV-Modus erfordert QR-Trennung und Entfernung von QR-Trennseiten")
+                    if values[-1] and not values[4]:
+                        raise ValueError("DATEV-Modus erfordert QR-Trennung; QR-Trennblätter dürfen erhalten bleiben")
                     if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[-1])).fetchone():
                         raise ValueError("DATEV-Ausgang muss exklusiv sein")
                     if values[-1]:ensure_datev_samba_protection(values[2])
