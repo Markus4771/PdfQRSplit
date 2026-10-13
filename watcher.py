@@ -11,6 +11,7 @@ import time
 from pathlib import Path
 
 from worker import run
+from profile_settings import migrate,SELECT
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 DB=DATA/"profiles.sqlite3"
@@ -54,11 +55,12 @@ def connect():
         con.execute("ALTER TABLE jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
     if "next_retry" not in columns:
         con.execute("ALTER TABLE jobs ADD COLUMN next_retry TEXT")
+    migrate(con)
     con.commit()
     return con
 
 def configs(con):
-    return con.execute("SELECT id,name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr FROM profiles ORDER BY id").fetchall()
+    return con.execute("SELECT "+SELECT+" FROM profiles ORDER BY id").fetchall()
 
 def fingerprint(path, st, profile_id):
     # A stable file identity, avoids repeat processing after watcher restart.
@@ -95,7 +97,8 @@ def once(con,profile,shares,seen):
                 now=datetime.datetime.now(datetime.timezone.utc).isoformat()
                 if status!="retry" or attempts>=3 or (next_retry and next_retry>now):
                     continue
-            opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches)))
+            opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches[:5])))
+            opts.update(blank_threshold=switches[5],languages=switches[6],output_type=switches[7],rotate_pages=bool(switches[8]),deskew=bool(switches[9]))
             qr=con.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
             if row:
                 con.execute("UPDATE jobs SET status='running',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(digest,))
