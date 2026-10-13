@@ -26,6 +26,7 @@ install -m 0755 worker.py /opt/qrscan/worker.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
 install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0644 profile_settings.py /opt/qrscan/profile_settings.py
+install -m 0644 safe_publish.py /opt/qrscan/safe_publish.py
 install -m 0755 selftest.py /opt/qrscan/selftest.py
 install -d -o root -g root -m 0755 /usr/local/lib/qrscan
 install -m 0755 -o root -g root samba_helper.py /usr/local/lib/qrscan/samba_helper.py
