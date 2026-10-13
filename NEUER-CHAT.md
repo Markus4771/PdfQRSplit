@@ -48,3 +48,7 @@ Die Codeprüfung zeigte spezielle Stirling-Pfade, Stirling-ACLs und eine eigene 
 - Installer kopiert den Worker und installiert notwendige Python-Abhängigkeiten.
 - **Noch nicht getestet auf Debian 13 oder mit realen Scans.**
 - **Noch offen:** Ausführung je gespeichertes GUI-Profil, automatische Eingangsordner-Überwachung, ACL- und Samba-Schreibrechte, Fehlermanagement, frei einstellbarer Leerseiten-Schwellenwert, vorsichtiger Crop-Test, testgestützte Qualitätssicherung.
+
+## Umsetzung Schritt 1: Eingang überwachen
+
+Neuer `watcher.py` und `qrscan-watcher.service` im Installer. Liest die Profil-Samba-Eingänge und erkennt stabile PDF-Dateien, loggt aber nur. Kein Löschen/Verschieben/Verarbeiten. Eigene Zugriffsrechte für `qrscan` bleiben noch zu konfigurieren und auf Debian zu testen. Nächster Schritt: echte Job-Verarbeitung nach der Erkennung.
