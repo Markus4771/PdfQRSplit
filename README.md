@@ -113,3 +113,21 @@ sudo journalctl -u qrscan-watcher -f
 **Sicherheit und Einschränkungen:** Noch kein vollständiger Integrationstest auf Debian mit Samba-Rechten. Der `qrscan`-Dienstbenutzer braucht Lesezugriff auf Eingänge und Schreibzugriff auf Ausgänge. Bei Fehlern erfolgt derzeit **kein automatischer Retry**, sondern die Fehlerzeile bleibt für spätere Analyse in der Datenbank. Bei Absturz können Einträge auf `running` verbleiben. Das Verhalten bei gleichzeitigem Dateischreiben muss mit echten Scannerdateien geprüft werden. Original-PDFs werden nicht entfernt. Die GUI zeigt Jobstatus noch nicht an. Vor produktivem Einsatz Backup und Test mit Beispieldokumenten durchführen.
 
 Das alte Read-only-Watcher-Verhalten aus Schritt 1 gilt nach diesem Update nicht mehr. Sobald ein geeignetes Profil eingerichtet ist und der Dienst Zugriff hat, wird die PDF-Verarbeitung automatisch angestoßen.
+
+## Punkt 3: Samba-ACL und Fehlerbehandlung
+
+Neues `sync_permissions.py` erteilt dem Dienstbenutzer `qrscan` für **konfigurierte, vom Samba-Manager verwaltete Ordner** die minimal notwendigen ACLs: Eingang `rx`, Ausgang `rwx`. Auch Default-ACLs werden für neue Dateien gesetzt. Vorhandene Dateien und deren Rechte werden **nicht rekursiv verändert**. Der Installer kopiert den Helfer, führt ihn absichtlich nicht ohne bestätigte Profilzuordnung aus.
+
+**Nach dem Anlegen oder Ändern von Profilen** (auf einem Testsystem):
+
+```bash
+sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py
+sudo systemctl restart qrscan-watcher
+sudo journalctl -u qrscan-watcher -n 80 --no-pager
+```
+
+Der systemd-Dienst darf nun in `/srv/samba-shares` schreiben, sofern Dateirechte dies ebenfalls gestatten. Ein bloßes `ReadWritePaths` umgeht niemals Unix-/ACL-Rechte.
+
+Fehlerbehandlung: Laufende Jobs werden nach Dienstabbruch als `interrupted` markiert und **nicht automatisch erneut ausgeführt**. Nur vorübergehende Betriebssystem-/I/O-Fehler werden bis zu 3 Mal mit jeweils längerer Wartezeit wiederholt. PDF- oder Dateinamenskonflikte bleiben als Fehler markiert. Originalscans werden nicht gelöscht.
+
+**Noch offen / Testpflicht:** Der ACL-Helfer setzt voraus, dass die Samba-Freigaben bereits verwaltet werden. Auf einer völlig frischen Debian-Installation ohne Samba-Manager müssen wir zuerst die Share-Erstellung integrieren. Keine Tests mit echten SMB-Dateien durchgeführt. Der Scanner muss nach dem Hochladen die PDF schließen; reine Stabilitätszeit ist noch kein garantiertes Übertragungsende. Die GUI besitzt noch keine Auftrags-/Wiederherstellungsansicht.
