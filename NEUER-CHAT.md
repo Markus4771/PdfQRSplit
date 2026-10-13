@@ -148,3 +148,7 @@ Die frühere Fehlermeldung `Profil ungültig: DATEV-Ausgang muss eine geschützt
 ## DATEV: QR-Trennblätter bleiben auf Wunsch enthalten
 
 `app.py`: DATEV-Profil verlangt nur `qr_split=1`; `remove_separators` darf 0 sein. `worker.sections` übernimmt vorhandene QR-Trennseite bei deaktiviertem Entfernen als erste Seite des nächsten Einzelbelegs. Achtung: identische QR-Trennseiten beeinflussen visuelle Fingerprint-Dublettenprüfung; Sicherheit mit Testbelegen validieren. Keine Änderung des Standardprofils oder der bisherigen getrennten PDF-Verarbeitung.
+
+## Automatisches Originalarchiv – DATEV
+
+Neu `original_archive.py`, `test_original_archive.py`. `watcher.py` archiviert die originale ungetrennte Quell-PDF **nur nach erfolgreicher DATEV-Verarbeitung** und nur wenn kein anderes Profil dieselbe Eingangsfreigabe verwendet. Archiv `/var/lib/qrscan/original-archive/`, 0700; neue Dokumente 0600, SHA-256-verifiziert. Ablauf: Output bereits erfolgreich, Archivkopie dauerhaft ablegen, Job `done` einschließlich `original_archive` persistieren, Eingangsoriginal nur bei unverändertem SHA-256/Dateizustand entfernen. Bei Fehler, Quarantäneverdacht oder gemeinsamer Eingangsfreigabe wird nicht aus dem Eingang entfernt. Keine automatische rückwirkende Archivierung bereits erledigter Jobs. Nach Absturz können beide Kopien existieren, niemals ungeprüft löschen. Installationsroutine erstellt Archivordner und führt Regressionstests aus. Debian-Praxistest und PBS-Backup-Prüfung fehlen.
