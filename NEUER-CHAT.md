@@ -76,3 +76,7 @@ Die Web-GUI enthält jetzt Samba-Formulare; `samba_helper.py` ist über eine ein
 ## Profilbearbeitung und OCR-Optionen
 
 Neue Datei `profile_settings.py` mit Migration älterer SQLite-Profile, Formularen für die Bearbeitung und Eingabevalidierung. `app.py` speichert Änderungen, `watcher.py` überträgt OCR-Sprache, Ausgabeformat, Rotation/Deskew und Leerseiten-Schwellwert an `worker.py`. Installer kopiert die Datei. Noch kein Debian-13-Integrationstest.
+
+## Punkt 3: Verarbeitungsabsicherung
+
+Neues Modul `safe_publish.py` und Test `test_safe_publish.py`. Der Worker veröffentlicht vollständig vorbereitete PDFs ohne Überschreiben. Der Watcher hat nun eine Instanzsperre (`flock`), PDF-Snapshot mit Datenvergleich und eine erweiterte Auftragskennung, die den Quellpfad berücksichtigt. Installer und Selbsttest aktualisiert. Offene Risiken: Stromausfall während Mehrfachpublikation, Scanner-Copy-Race und noch fehlender praktischer Debian-/SMB-Test.
