@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from worker import run
+from original_archive import prepare_archive,remove_archived_source
 from retry_policy import MAX_ATTEMPTS, should_retry, next_retry
 from output_naming import output_stem
 from jobs_ui import cleanup_jobs
@@ -161,8 +162,34 @@ def once(con,profile,shares,seen):
                         return h.digest()
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
+                    source_sha256=file_hash(snapshot).hex()
                     result=run(snapshot,destination,qr,opts,output_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0))
+                # Preserve the archive before removing an original from the input.
+                # Only DATEV profiles with an exclusive input share qualify.
+                archive_ready=None
+                archive_allowed=opts["datev_mode"] and not any(
+                    other[0]!=ident and other[2]==in_share for other in configs(con))
+                if archive_allowed:
+                    try:
+                        expected=source_sha256
+                        archive_path,archived_stat=prepare_archive(
+                            path,DATA/"original-archive",expected)
+                        result["original_archive"]=archive_path
+                        archive_ready=(archive_path,archived_stat,expected)
+                    except Exception as archive_error:
+                        result["archive_warning"]=str(archive_error)
+                        logging.error("Original not archived; source kept: %s",archive_error)
+                elif opts["datev_mode"]:
+                    result["archive_warning"]="Eingangsfreigabe wird von mehreren Profilen genutzt; Original bleibt erhalten"
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(json.dumps(result,ensure_ascii=False),digest))
+                con.commit()
+                if archive_ready:
+                    archived_path,archived_stat,expected=archive_ready
+                    try:
+                        remove_archived_source(path,archived_path,expected,archived_stat)
+                        logging.info("Original archived and removed from input: %s -> %s",path,archived_path)
+                    except Exception as archive_error:
+                        logging.error("Archive exists but input remains for safety: %s",archive_error)
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
                 attempts=con.execute("SELECT attempts FROM jobs WHERE signature=?",(digest,)).fetchone()[0]
