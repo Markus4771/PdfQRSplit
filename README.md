@@ -195,3 +195,16 @@ GitHub Actions Workflow `.github/workflows/debian13.yml` prüft bei Push/Pull Re
 Auf einem frischen Debian erzeugt `install.sh` jetzt zusätzlich `/srv/samba-shares`, prüft beide systemd-Dienste und startet die PDF-Ausgabetests.
 
 **Vor Freigabe für den Produktivbetrieb auf Test-VM durchführen:** Installer, Startpasswortwechsel, SMB-Share-Anlage, SMB-Zugriff mit zwei Shares/einem Benutzer, Passwortwechsel, Leseschreibrechte, Scanner-Upload, QR-Trennung, Leerseiten, OCR und Überwachung von Fehler-/Neustartzuständen. Der aktuell laufende Entwicklungscontainer ist Debian 13; dort ist GitHub wegen DNS-Auflösung nicht erreichbar. Daher wurde **keine erfolgreiche vollständige Testinstallation** nachgewiesen.
+
+## Samba-Verwaltungsdienst (Oktober 2026)
+
+Die Web-GUI führt den privilegierten Helfer **nicht mehr über sudo** aus. Der separate Dienst `qrscan-samba.service` läuft als root, prüft den lokalen aufrufenden Benutzer über Unix-Socket-Peer-Credentials und akzeptiert nur festgelegte Samba-Verwaltungsaktionen über `/run/qrscan/samba.sock`. `qrscan-web.service` bleibt mit `NoNewPrivileges=yes` und `ProtectSystem=strict` abgesichert. Der Installer entfernt die alte sudoers-Regel und startet den zusätzlichen Dienst. Rechte werden nicht global gelockert. Upgrade:
+
+```bash
+cd /root/PdfQRSplit
+git pull --ff-only
+bash install.sh
+systemctl status qrscan-samba qrscan-web --no-pager
+```
+
+Noch auf Debian 13 zu prüfen: Samba-Benutzer erstellen, Anmeldung, Dateirechte, Passwortwechsel und Bearbeitung über das Web. Keine bestehenden PDFs werden gelöscht.
