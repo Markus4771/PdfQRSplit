@@ -29,6 +29,7 @@ install -m 0755 watcher.py /opt/qrscan/watcher.py
 install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0644 profile_settings.py /opt/qrscan/profile_settings.py
 install -m 0644 safe_publish.py /opt/qrscan/safe_publish.py
+install -m 0644 datev_handoff.py /opt/qrscan/datev_handoff.py
 install -m 0644 retry_policy.py /opt/qrscan/retry_policy.py
 install -m 0644 output_naming.py /opt/qrscan/output_naming.py
 install -m 0644 test_output_naming.py /opt/qrscan/test_output_naming.py
