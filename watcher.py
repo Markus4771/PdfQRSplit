@@ -58,6 +58,8 @@ def connect():
         con.execute("ALTER TABLE jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
     if "next_retry" not in columns:
         con.execute("ALTER TABLE jobs ADD COLUMN next_retry TEXT")
+    if "replay_count" not in columns:
+        con.execute("ALTER TABLE jobs ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0")
     migrate(con)
     con.commit()
     return con
@@ -97,9 +99,9 @@ def once(con,profile,shares,seen):
             digest=fingerprint(path,stat,ident)
             latest=path.stat()
             if (stat.st_ino,stat.st_size,stat.st_mtime_ns)!=(latest.st_ino,latest.st_size,latest.st_mtime_ns):continue
-            row=con.execute("SELECT status,attempts,next_retry FROM jobs WHERE signature=?",(digest,)).fetchone()
+            row=con.execute("SELECT status,attempts,next_retry,replay_count FROM jobs WHERE signature=?",(digest,)).fetchone()
             if row:
-                status,attempts,next_retry=row
+                status,attempts,next_retry,replay_count=row
                 now=datetime.datetime.now(datetime.timezone.utc).isoformat()
                 if status not in ("retry","replay") or (status=="retry" and (attempts>=3 or (next_retry and next_retry>now))):
                     continue
@@ -130,7 +132,7 @@ def once(con,profile,shares,seen):
                         return h.digest()
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
-                    result=run(snapshot,destination,qr,opts,output_stem=(path.stem+"_wiederholung_"+digest[:12] if manual_replay else path.stem))
+                    result=run(snapshot,destination,qr,opts,output_stem=(path.stem+"_wiederholung_"+digest[:12]+"_"+str(replay_count) if manual_replay else path.stem))
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(result),digest))
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
