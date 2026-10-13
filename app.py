@@ -149,7 +149,7 @@ class Handler(BaseHTTPRequestHandler):
         for entry in result.get("shares",[]):
             safe=html.escape(entry["name"],quote=True)
             smb_html+="<h3>"+safe+"</h3><p>Benutzer: "+html.escape(entry.get("user",""))+"</p>"
-            smb_html+="<form method='post' action='/smb-update'><input type='hidden' name='name' value='"+safe+"'><select name='writable'><option value='yes'>Lesen/Schreiben</option><option value='no'>Nur lesen</option></select><button>Rechte speichern</button></form>"
+            smb_html+="<form method='post' action='/smb-update'><input type='hidden' name='name' value='"+safe+"'><label>Auf vorhandenen SMB-Benutzer umstellen (optional)</label><input name='user' placeholder='Bestehender SMB-Benutzer'><label>Passwort dieses Benutzers</label><input name='password' type='password' placeholder='Nur bei Benutzerwechsel'><label>Zugriff</label><select name='writable'><option value='yes'>Lesen/Schreiben</option><option value='no'>Nur lesen</option></select><button>Freigabe speichern</button></form>"
             smb_html+="<form method='post' action='/smb-password'><input type='hidden' name='name' value='"+safe+"'><input type='password' name='password' minlength='12' required placeholder='Neues SMB-Passwort'><button>Passwort ändern</button></form>"
             smb_html+="<form method='post' action='/smb-delete'><input type='hidden' name='name' value='"+safe+"'><button>Freigabe entfernen (Dateien bleiben)</button></form>"
         smb_html+="</section>"
@@ -187,7 +187,7 @@ class Handler(BaseHTTPRequestHandler):
             payload={"action":action,"name":get("name")}
             if action=="create":payload.update(user=get("user"),password=get("password"),writable="writable" in data)
             if action=="password":payload["password"]=get("password")
-            if action=="update":payload["writable"]=get("writable")=="yes"
+            if action=="update":payload.update(writable=get("writable")=="yes",user=get("user").strip(),password=get("password"))
             if action=="delete":
                 with db() as con:
                     used=con.execute("SELECT COUNT(*) FROM profiles WHERE input_share=? OR output_share=?",(get("name"),get("name"))).fetchone()[0]
