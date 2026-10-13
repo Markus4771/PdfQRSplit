@@ -64,3 +64,7 @@ Neuer `watcher.py` und `qrscan-watcher.service` im Installer. Liest die Profil-S
 ## Punkt 5: Auftragsübersicht (13.10.2026)
 
 `jobs_ui.py` ergänzt die bestehende Web-GUI um `/jobs`: Status-Übersicht, letzte 100 Aufträge und Fehlermeldungen, manuelles Wiederholen von `error`/`interrupted` mit Bestätigungscheckbox. `install.sh` kopiert das Modul. `watcher.py` markiert liegengebliebene `running`-Aufträge nur noch beim Dienststart als unterbrochen. Noch nicht praktisch getestet.
+
+## Punkt 6 – 13.10.2026
+
+Nichtdestruktiver Installations-Selbsttest `selftest.py` ergänzt; `install.sh` legt ihn im Zielsystem ab und gibt den Testbefehl aus. Der Code ist auf GitHub, aber ein echter Debian-13-Test ist hier mangels Server/DNS nicht durchgeführt worden. Kritische verbleibende Lücke: Der Samba-Helfer aus Punkt 4 ist noch nicht privilegiert angebunden; GUI und Helfer verwenden unterschiedliche Share-Konfigurationsdateien. Vor End-to-End-Freigabe vereinheitlichen und testen.
