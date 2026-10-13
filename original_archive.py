@@ -19,7 +19,7 @@ def file_hash(path):
             h.update(data)
     return h.hexdigest()
 
-def prepare_archive(source,archive_root,expected_sha256):
+def prepare_archive(source,archive_root,expected_sha256,shared=False):
     source=Path(source)
     archive_root=Path(archive_root)
     if source.is_symlink() or not source.is_file():
@@ -27,8 +27,12 @@ def prepare_archive(source,archive_root,expected_sha256):
     before=source.stat()
     if file_hash(source)!=expected_sha256:
         raise ValueError("Originaldatei wurde während der Verarbeitung verändert")
-    archive_root.mkdir(parents=True,exist_ok=True,mode=0o700)
-    os.chmod(archive_root,0o700)
+    if shared:
+        if archive_root.is_symlink() or not archive_root.is_dir():
+            raise ValueError("Archivfreigabe fehlt oder ist Symlink")
+    else:
+        archive_root.mkdir(parents=True,exist_ok=True,mode=0o700)
+        os.chmod(archive_root,0o700)
     safe_name=source.stem[:80]
     dest=archive_root/(safe_name+"_"+expected_sha256+".pdf")
     if dest.is_symlink():
