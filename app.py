@@ -13,6 +13,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
+from jobs_ui import dashboard,request_retry
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -91,8 +92,28 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<h1>Administratorpasswort ändern</h1><p>"+html.escape(msg)+"</p><section><form method='post' action='/password'><label>Neues Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><label>Wiederholen</label><input type='password' name='confirm' minlength='12' required><button>Passwort ändern</button></form></section>")
     def do_GET(self):
         if not self.guard():return
-        if self.path!="/":return self.page("Nicht gefunden",404)
+        if self.path not in ("/","/jobs"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
+        if self.path=="/jobs":
+            with db(): pass
+            totals,rows=dashboard(DB)
+            counts="".join("<b>"+html.escape(k)+": "+str(v)+"</b> &nbsp; " for k,v in sorted(totals.items()))
+            lines=[]
+            for signature,filename,status,details,attempts,updated,profile in rows:
+                entry="<article><p><b>"+html.escape(status)+"</b> · "+html.escape(profile)+" · "+html.escape(updated or "")+"</p>"
+                entry+="<p>"+html.escape(filename)+"</p><p class='small'>Versuche: "+str(attempts or 0)+" · "+html.escape(str(details or "")[:1000])+"</p>"
+                if status in ("error","interrupted"):
+                    entry+=("<form method='post' action='/retry'>"
+                           "<input type='hidden' name='signature' value='"+signature+"'>"
+                           "<label><input type='checkbox' name='verified' value='yes' required>"
+                           "Vorhandene Ausgabedateien und Ursache überprüft</label>"
+                           "<button>Erneut versuchen</button></form>")
+                lines.append(entry+"</article><hr>")
+            return self.page("<header><h1>Auftragsübersicht</h1><a href='/'>Zur Konfiguration</a></header>"
+                             "<section><h2>Status</h2>"+(counts or "Keine Aufträge")+"</section>"
+                             "<section><h2>Letzte 100 Aufträge</h2>"+("".join(lines) or "Noch keine Aufträge")+"</section>"
+                             "<p class='small'>Erneute Versuche überschreiben vorhandene Ausgaben nicht. "
+                             "Bei Konflikten bleibt der Auftrag fehlgeschlagen.</p>")
         s=shares()
         with db() as c:
             profiles=c.execute("SELECT id,name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr FROM profiles ORDER BY name").fetchall()
@@ -103,10 +124,10 @@ class Handler(BaseHTTPRequestHandler):
             checked=", ".join(k for k,v in zip(FIELDS,p[4:]) if v) or "Keine"
             rows+="<p><b>"+html.escape(p[1])+"</b>: "+html.escape(p[2])+" → "+html.escape(p[3])+"<br><span class='small'>"+html.escape(checked)+"</span></p><form method='post' action='/delete'><input type='hidden' name='id' value='"+str(p[0])+"'><button>Profil entfernen</button></form><hr>"
         msg="<p class='notice'>Keine kompatiblen Samba-Freigaben gefunden. Zuerst Freigaben im bestehenden Samba-Manager anlegen.</p>" if not s else ""
-        self.page("<header><h1>QR Scan Manager</h1><span>Konfiguration</span></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss")])+"<button>Profil anlegen</button></form></section><section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
+        self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss")])+"<button>Profil anlegen</button></form></section><section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -123,6 +144,14 @@ class Handler(BaseHTTPRequestHandler):
             tmp=AUTH.with_suffix(".tmp");tmp.write_text(json.dumps(new));os.chmod(tmp,0o600);os.replace(tmp,AUTH)
             self.page("<h1>Passwort gespeichert</h1><p>Bitte Browseranmeldung neu durchführen.</p>");return
         if self.password_needed():return self.password_form()
+        if self.path=="/retry":
+            if get("verified")!="yes":
+                return self.page("Prüfung der vorhandenen Ausgaben bestätigen",400)
+            ok,message=request_retry(DB,get("signature"))
+            if not ok:
+                return self.page("<h1>Wiederholung nicht möglich</h1><p>"+html.escape(message)+"</p>",409)
+            self.send_response(303);self.send_header("Location","/jobs");self.end_headers()
+            return
         with db() as c:
             if self.path=="/qr":
                 value=get("qr").strip()
