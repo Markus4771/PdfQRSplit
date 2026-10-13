@@ -92,7 +92,7 @@ fi
 touch /etc/samba/qrscan-shares.conf
 chmod 0644 /etc/samba/qrscan-shares.conf
 python3 - <<'PY'
-"""Place the QR Scan Manager share include AFTER all existing Samba sections.
+"""Place the QR Scan Manager include at the END of [global], before any share.
 
 An include immediately after [global] imports share sections before subsequent
 global options; Samba then wrongly treats those later options as service values.
@@ -114,8 +114,16 @@ if not re.search(r"(?im)^\s*\[global\]\s*$",data):
 # Remove every active occurrence, leave comments and all other parameters alone.
 lines=[line for line in data.splitlines(keepends=True)
        if not re.fullmatch(r"\s*include\s*=\s*/etc/samba/qrscan-shares\.conf\s*",line,re.I)
-       and line.strip()!="# PdfQRSplit managed shares; must remain after all global options and services"]
-candidate="".join(lines).rstrip()+"\n\n# PdfQRSplit managed shares; must remain after all global options and services\n"+include+"\n"
+       and line.strip()!="# PdfQRSplit managed shares; must remain after all global options and services"
+       and line.strip()!="# PdfQRSplit managed shares; must be the last directive of [global]"]
+clean="".join(lines)
+sections=list(re.finditer(r"(?im)^\s*\[(?!global\])[^\]]+\]\s*$",clean))
+if not sections:
+    raise SystemExit("Keine Samba-Freigabeabschnitte gefunden; keine Änderung")
+# Samba's include inherits the current section. It must be the last global
+# directive BEFORE [homes]/[printers]/[print$] etc, not at EOF.
+pos=sections[0].start()
+candidate=clean[:pos].rstrip()+"\n\n# PdfQRSplit managed shares; must be the last directive of [global]\n   "+include+"\n\n"+clean[pos:].lstrip("\n")
 if candidate.encode("utf-8")==original:
     print("Samba include already correct")
 else:
