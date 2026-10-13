@@ -122,17 +122,17 @@ class Handler(BaseHTTPRequestHandler):
             for signature,filename,status,details,attempts,updated,profile in rows:
                 entry="<article><p><b>"+html.escape(status)+"</b> · "+html.escape(profile)+" · "+html.escape(updated or "")+"</p>"
                 entry+="<p>"+html.escape(filename)+"</p><p class='small'>Versuche: "+str(attempts or 0)+" · "+html.escape(str(details or "")[:1000])+"</p>"
-                if status in ("error","interrupted"):
+                if status in ("done","error","interrupted"):
                     entry+=("<form method='post' action='/retry'>"
                            "<input type='hidden' name='signature' value='"+signature+"'>"
                            "<label><input type='checkbox' name='verified' value='yes' required>"
-                           "Vorhandene Ausgabedateien und Ursache überprüft</label>"
-                           "<button>Erneut versuchen</button></form>")
+                           "Neue Ausgabedateien mit eigenem Namen erstellen; bisherige Ausgaben bleiben erhalten</label>"
+                           "<button>Verarbeitung wiederholen</button></form>")
                 lines.append(entry+"</article><hr>")
             return self.page("<header><h1>Auftragsübersicht</h1><a href='/'>Zur Konfiguration</a></header>"
                              "<section><h2>Status</h2>"+(counts or "Keine Aufträge")+"</section>"
                              "<section><h2>Letzte 100 Aufträge</h2>"+("".join(lines) or "Noch keine Aufträge")+"</section>"
-                             "<p class='small'>Erneute Versuche überschreiben vorhandene Ausgaben nicht. "
+                             "<p class='small'>Bei Wiederholung abgeschlossener Aufträge werden neue Ausgabedateien mit eigenem Namenszusatz erstellt. "
                              "Bei Konflikten bleibt der Auftrag fehlgeschlagen.</p>")
         s=shares()
         with db() as c:
