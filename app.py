@@ -89,6 +89,19 @@ def samba_call(payload):
         return {"ok":False,"error":"Samba-Verwaltungsdienst nicht erreichbar"}
 
 
+def ensure_datev_samba_protection(name):
+    """Require an explicitly selected DATEV output and switch SMB clients to read-only."""
+    response=samba_call({"action":"list"})
+    if not response.get("ok"):
+        raise ValueError("Samba-Manager nicht erreichbar: "+response.get("error","Unbekannter Fehler"))
+    match=next((x for x in response.get("shares",[]) if x.get("name")==name),None)
+    if match is None:
+        raise ValueError("DATEV-Ausgang ist keine verwaltete Samba-Freigabe")
+    if not match.get("datev_protected") or match.get("writable"):
+        change=samba_call({"action":"protect-datev","name":name})
+        if not change.get("ok"):
+            raise ValueError("DATEV-Schutz konnte nicht aktiviert werden: "+change.get("error","Unbekannter Fehler"))
+
 STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-width:1080px;margin:35px auto;padding:0 16px}header{display:flex;justify-content:space-between;align-items:center}section{background:white;border:1px solid #ddd;border-radius:12px;padding:22px;margin:18px 0}input,select{width:100%;box-sizing:border-box;padding:10px;margin:6px 0 14px;border:1px solid #ccc;border-radius:7px}input[type=checkbox]{width:auto;margin:0 7px 0 0}label{display:block;margin:8px 0}button{background:#26292e;color:white;padding:11px 17px;border:0;border-radius:8px;cursor:pointer}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.small{color:#666;font-size:13px}.notice{color:#964514}@media(max-width:700px){.row{grid-template-columns:1fr}}</style>"""
 
 class Handler(BaseHTTPRequestHandler):
@@ -241,24 +254,24 @@ class Handler(BaseHTTPRequestHandler):
                 datev=int("datev_mode" in data)
                 if datev and not ("qr_split" in data and "remove_separators" in data):
                     return self.page("DATEV-Modus benötigt QR-Trennung und Entfernung der Trennseiten",400)
-                if datev and not next((x.get("datev_protected") for x in samba_call({"action":"list"}).get("shares",[]) if x.get("name")==out),False):
-                    return self.page("DATEV-Ausgang muss zuerst als schreibgeschützte DATEV-Freigabe eingerichtet werden",409)
                 if datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? LIMIT 1",(out,)).fetchone():
                     return self.page("DATEV-Ausgang muss exklusiv sein",409)
                 if not datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? AND datev_mode=1 LIMIT 1",(out,)).fetchone():
                     return self.page("Ausgang bereits für DATEV reserviert",409)
+                if datev:
+                    try:ensure_datev_samba_protection(out)
+                    except ValueError as exc:return self.page("DATEV-Schutz: "+html.escape(str(exc)),409)
                 try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,datev_mode) VALUES (?,?,?,?,?,?,?,?,?)",(name,inp,out,*values,datev))
                 except sqlite3.IntegrityError:return self.page("Profilname schon vorhanden",409)
             elif self.path=="/profile-update":
                 try:
                     ident=int(get("id"))
                     values=check(data,shares())
-                    if values[-1] and not next((x.get("datev_protected") for x in samba_call({"action":"list"}).get("shares",[]) if x.get("name")==values[2]),False):
-                        raise ValueError("DATEV-Ausgang muss eine geschützte, schreibgeschützte Samba-Freigabe sein")
                     if values[-1] and (not values[4] or not values[5]):
                         raise ValueError("DATEV-Modus erfordert QR-Trennung und Entfernung von QR-Trennseiten")
                     if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[-1])).fetchone():
                         raise ValueError("DATEV-Ausgang muss exklusiv sein")
+                    if values[-1]:ensure_datev_samba_protection(values[2])
                     c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=? WHERE id=?",(*values,ident))
                 except (ValueError,sqlite3.IntegrityError) as exc:
                     return self.page("Profil ungültig: "+html.escape(str(exc)),400)
