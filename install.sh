@@ -92,19 +92,49 @@ fi
 touch /etc/samba/qrscan-shares.conf
 chmod 0644 /etc/samba/qrscan-shares.conf
 python3 - <<'PY'
+"""Place the QR Scan Manager share include AFTER all existing Samba sections.
+
+An include immediately after [global] imports share sections before subsequent
+global options; Samba then wrongly treats those later options as service values.
+"""
 from pathlib import Path
+import os
 import re
-p = Path("/etc/samba/smb.conf")
-data = p.read_text()
-include = "include = /etc/samba/qrscan-shares.conf"
-if include not in data:
-    if not re.search(r"(?im)^\s*\[global\]\s*$", data):
-        raise SystemExit("Samba [global] fehlt in /etc/samba/smb.conf")
-    backup = Path("/etc/samba/smb.conf.bak-qrscan")
-    if not backup.exists():
-        backup.write_text(data)
-    data = re.sub(r"(?im)^(\s*\[global\]\s*)$", lambda m: m.group(1) + "\n   " + include, data, count=1)
-    p.write_text(data)
+import shutil
+import subprocess
+import tempfile
+from datetime import datetime
+
+p=Path("/etc/samba/smb.conf")
+include="include = /etc/samba/qrscan-shares.conf"
+original=p.read_bytes()
+data=original.decode("utf-8")
+if not re.search(r"(?im)^\s*\[global\]\s*$",data):
+    raise SystemExit("Samba [global] fehlt; Konfiguration bleibt unverändert")
+# Remove every active occurrence, leave comments and all other parameters alone.
+lines=[line for line in data.splitlines(keepends=True)
+       if not re.fullmatch(r"\s*include\s*=\s*/etc/samba/qrscan-shares\.conf\s*",line,re.I)]
+candidate="".join(lines).rstrip()+"\n\n# PdfQRSplit managed shares; must remain after all global options and services\n"+include+"\n"
+if candidate.encode("utf-8")==original:
+    print("Samba include already correct")
+else:
+    backup=p.with_name("smb.conf.bak-qrscan-"+datetime.now().strftime("%Y%m%d-%H%M%S"))
+    shutil.copy2(p,backup)
+    fd,temp=tempfile.mkstemp(prefix=".smb-qrscan-",dir=str(p.parent))
+    try:
+        with os.fdopen(fd,"wb") as stream:
+            stream.write(candidate.encode("utf-8"))
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.chmod(temp,p.stat().st_mode & 0o777)
+        # testparm can validate a candidate configuration without touching the live one.
+        check=subprocess.run(["testparm","-s",temp],capture_output=True,text=True,timeout=30)
+        if check.returncode:
+            raise RuntimeError("Samba-Konfiguration ungültig; unverändert: "+check.stderr[-1000:])
+        os.replace(temp,p)
+        print("Samba include ans Dateiende verschoben. Backup: "+str(backup))
+    finally:
+        if os.path.exists(temp):os.unlink(temp)
 PY
 testparm -s >/dev/null
 # Legacy sudo rule is no longer necessary; privileges live in a separate daemon.
