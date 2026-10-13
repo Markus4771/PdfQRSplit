@@ -208,3 +208,7 @@ systemctl status qrscan-samba qrscan-web --no-pager
 ```
 
 Noch auf Debian 13 zu prüfen: Samba-Benutzer erstellen, Anmeldung, Dateirechte, Passwortwechsel und Bearbeitung über das Web. Keine bestehenden PDFs werden gelöscht.
+
+## Zwei Samba-Freigaben mit demselben Benutzer
+
+Beim Anlegen einer weiteren Freigabe denselben SMB-Benutzer und dessen vorhandenes Passwort eingeben. Die Passwortprüfung verwendet nun echte Zeilenumbrüche in der geschützten `smbclient`-Anmeldedatei. Bei bereits vorhandenen Freigaben im Abschnitt „Samba-Freigaben“ den gewünschten Freigabeneintrag bearbeiten: im Feld „Auf vorhandenen SMB-Benutzer umstellen“ den Benutzer der ersten Freigabe und im Passwortfeld dessen Passwort eintragen und speichern. Der alte SMB-Benutzer wird nicht gelöscht. **Wichtig:** Ein Samba-Passwort gehört zum Benutzer, nicht zu einer einzelnen Freigabe; ein Passwortwechsel betrifft alle Freigaben dieses Benutzers. Die Formulare übertragen Passwörter derzeit über die Webverbindung; nur im geschützten Testnetz verwenden und TLS vor Produktivbetrieb ergänzen.
