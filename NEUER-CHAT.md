@@ -84,3 +84,7 @@ Neues Modul `safe_publish.py` und Test `test_safe_publish.py`. Der Worker veröf
 ## Punkt 4 – Debian 13 (Testvorbereitung)
 
 Installer legt jetzt `/srv/samba-shares` an, prüft Web- und Watcher-Dienst und führt die Safe-Publish-Tests aus. `.github/workflows/debian13.yml` führt einen Debian-13-Containercheck mit Syntax- und Publishing-Tests aus. Noch nicht bestätigt, dass CI erfolgreich abgeschlossen wurde, und kein E2E-Samba-/OCR-Test durchgeführt. Entwicklungscontainer Debian 13 vorhanden, GitHub-Download dort durch DNS blockiert.
+
+## Separater Samba-Verwaltungsdienst
+
+`samba_rpc.py` als Root-Dienst `qrscan-samba.service`, Verbindung über Unix-Socket nur für `qrscan` per SO_PEERCRED. Webdienst wieder `NoNewPrivileges=yes`, alte sudoers-Regel wird im Installer entfernt. Kein schreibgeschütztes Dateisystem für Root-Helfer. Installation/SMB-Erstellung noch praktisch verifizieren.
