@@ -112,8 +112,26 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<h1>Administratorpasswort ändern</h1><p>"+html.escape(msg)+"</p><section><form method='post' action='/password'><label>Neues Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><label>Wiederholen</label><input type='password' name='confirm' minlength='12' required><button>Passwort ändern</button></form></section>")
     def do_GET(self):
         if not self.guard():return
-        if self.path not in ("/","/jobs"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/","/jobs","/datev-review"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
+        if self.path=="/datev-review":
+            entries=[]
+            registry=DATA/"datev.sqlite3"
+            if registry.is_file():
+                with sqlite3.connect("file:"+str(registry)+"?mode=ro",uri=True) as con:
+                    tables={r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                    if "datev_suspects" in tables:
+                        columns={r[1] for r in con.execute("PRAGMA table_info(datev_suspects)")}
+                        if "review_path" in columns:
+                            entries=con.execute("SELECT digest,source,matching_digest,review_path FROM datev_suspects ORDER BY created_at DESC LIMIT 200").fetchall()
+            lines=[]
+            for digest,source,match,path in entries:
+                present=bool(path and Path(path).is_file())
+                lines.append("<p><b>"+html.escape(digest[:16])+"</b> | Quelle: "+html.escape(source or "")+
+                             " | Vergleich: "+html.escape((match or "")[:16])+
+                             " | "+("Prüfdatei vorhanden: " if present else "Prüfdatei fehlt: ")+html.escape(path or "")+"</p>")
+            return self.page("<header><h1>DATEV-Prüfbereich</h1><a href='/jobs'>Aufträge & Fehler</a></header><section>"+
+                ("".join(lines) or "Keine Verdachtsfälle")+"</section>")
         if self.path=="/jobs":
             with db(): pass
             totals,rows,retention=dashboard(DB)
@@ -135,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
                            "<input type='hidden' name='signature' value='"+signature+"'>"
                            "<button>Verarbeitung wiederholen</button></form>")
                 lines.append(entry+"</article><hr>")
-            return self.page("<header><h1>Auftragsübersicht</h1><a href='/'>Zur Konfiguration</a></header>"
+            return self.page("<header><h1>Auftragsübersicht</h1><a href='/'>Zur Konfiguration</a> · <a href='/datev-review'>DATEV-Prüfbereich</a></header>"
                              "<section><h2>Status</h2>"+(counts or "Keine Aufträge")+"</section>"
                              "<section><h2>Datenbank-Aufbewahrung</h2><form method='post' action='/retention'><label>Abgeschlossene und fehlgeschlagene Aufträge nach Tagen entfernen (7–3650)</label><input type='number' min='7' max='3650' name='days' value='"+str(retention)+"' required><button>Aufbewahrung speichern</button></form><p class='small'>Standard: 90 Tage. Nur Auftragseinträge werden bereinigt; PDFs bleiben unverändert. Die Bereinigung erfolgt automatisch durch den Watcher.</p></section>"
                              "<section><h2>Letzte 100 Aufträge</h2>"+("".join(lines) or "Noch keine Aufträge")+"</section>"
