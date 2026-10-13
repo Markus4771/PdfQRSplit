@@ -125,8 +125,6 @@ class Handler(BaseHTTPRequestHandler):
                 if status in ("done","error","interrupted"):
                     entry+=("<form method='post' action='/retry'>"
                            "<input type='hidden' name='signature' value='"+signature+"'>"
-                           "<label><input type='checkbox' name='verified' value='yes' required>"
-                           "Neue Ausgabedateien mit eigenem Namen erstellen; bisherige Ausgaben bleiben erhalten</label>"
                            "<button>Verarbeitung wiederholen</button></form>")
                 lines.append(entry+"</article><hr>")
             return self.page("<header><h1>Auftragsübersicht</h1><a href='/'>Zur Konfiguration</a></header>"
@@ -175,8 +173,6 @@ class Handler(BaseHTTPRequestHandler):
             self.page("<h1>Passwort gespeichert</h1><p>Bitte Browseranmeldung neu durchführen.</p>");return
         if self.password_needed():return self.password_form()
         if self.path=="/retry":
-            if get("verified")!="yes":
-                return self.page("Prüfung der vorhandenen Ausgaben bestätigen",400)
             ok,message=request_retry(DB,get("signature"))
             if not ok:
                 return self.page("<h1>Wiederholung nicht möglich</h1><p>"+html.escape(message)+"</p>",409)
