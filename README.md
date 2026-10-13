@@ -326,3 +326,9 @@ Nach Hinzufügen der Archivfreigabe verwendete `app.py` bei der Profilaktualisie
 ## DATEV-Profil QR-Prüfung: Diagnose (14.10.2026)
 
 Bei Profiländerungen prüft `app.py` nun unmittelbar die übermittelten Formularfelder `qr_split` und `datev_mode`, statt Tupelindizes zu verwenden. Wenn trotz aktivierter QR-Code-Trennung eine Fehlermeldung erscheint, `/opt/qrscan/app.py` auf dem Zielsystem aktualisieren und `qrscan-web` neu starten (via `git pull --ff-only && bash install.sh`). Die neue Fehlermeldung zeigt explizit `qr_split=aus, datev_mode=an`, wenn der Server die QR-Checkbox nicht erhält. QR-Trennblätter entfernen bleibt optional.
+
+## Fluent-Bit-Paketserver: Debian Trixie Packages.bz2 Prüfsummenfehler (14.10.2026)
+
+Wenn `apt-get update` beim Fluent-Bit-Repository `packages.fluentbit.io/debian/trixie` mit `Datei hat eine unerwartete Größe` abbricht, handelt es sich um einen inkonsistent bereitgestellten Paketindex (APT blockiert die unsichere Quelle). **Nicht** `[trusted=yes]`, unsichere Repositories oder APT-Signatur-/Hash-Prüfungen abschalten. `install.sh` probiert dann bei vorhandenem Fluent-Bit-Repository das Update ohne diese Paketquelle erneut. Scheitert die optionale Fluent-Bit-Installation selbst, wird die Quelle als `fluent-bit.list.disabled` deaktiviert, während die Hauptinstallation fertiglaufen kann. Fluent Bit ist vorerst nur eine optionale lokale Staging-Komponente ohne Windows-Verbindungen oder DATEV-Logauswertung. Sobald der Paketserver wieder gültige Daten liefert, kann die Installation mit `bash install.sh` wiederholt werden.
+
+Nach dem Update kontrollieren: `grep -n 'Übermittelt: qr_split' /opt/qrscan/app.py`, `systemctl is-active qrscan-web qrscan-watcher`, und ob DATEV-Profile gespeichert werden können. Ein älterer Webprozess wird bei Installer-Neustart neu geladen.
