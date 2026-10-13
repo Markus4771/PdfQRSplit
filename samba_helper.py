@@ -41,6 +41,18 @@ def write(entries):
         run(["systemctl","reload","smbd"])
     finally:
         if os.path.exists(tmp):os.unlink(tmp)
+def verify_user(user,password):
+    """Check the existing user's SMB password without exposing it in process args."""
+    fd,authfile=tempfile.mkstemp(prefix=".qrscan-auth-")
+    try:
+        with os.fdopen(fd,"w") as cred:
+            cred.write("username = "+user+"\npassword = "+password+"\n")
+        os.chmod(authfile,0o600)
+        result=subprocess.run(["smbclient","-L","localhost","-A",authfile,"-m","SMB3"],capture_output=True,text=True,timeout=20)
+    finally:
+        os.unlink(authfile)
+    if result.returncode:fail("Passwort für vorhandenen SMB-Benutzer stimmt nicht")
+
 def main():
     if os.geteuid()!=0:fail("Root erforderlich")
     try:request=json.loads(sys.stdin.read(16384))
@@ -63,17 +75,7 @@ def main():
         if path.exists() or path.is_symlink():fail("Zielordner bereits vorhanden")
         linked=[x for x in entries.values() if x.get("valid users")==user]
         if linked:
-            # Existing password verified against samba authentication using smbclient.
-            # Do not change shared password when attaching a new share.
-            fd,authfile=tempfile.mkstemp(prefix=".qrscan-auth-")
-            try:
-                with os.fdopen(fd,"w") as cred:
-                    cred.write("username = "+user+"\\npassword = "+password+"\\n")
-                os.chmod(authfile,0o600)
-                result=subprocess.run(["smbclient","-L","localhost","-A",authfile,"-m","SMB3"],capture_output=True,text=True,timeout=20)
-            finally:
-                os.unlink(authfile)
-            if result.returncode:fail("Passwort für vorhandenen SMB-Benutzer stimmt nicht")
+            verify_user(user,password)
         else:
             try:pwd.getpwnam(user);fail("Benutzer existiert außerhalb dieses Managers")
             except KeyError:pass
@@ -88,6 +90,16 @@ def main():
         write(entries)
     elif action=="update":
         if name not in entries:fail("Freigabe fehlt")
+        new_user=request.get("user","")
+        if new_user:
+            password=request.get("password","")
+            if not isinstance(new_user,str) or not USER.fullmatch(new_user):fail("Ungültiger SMB-Benutzer")
+            if not isinstance(password,str) or not 12<=len(password)<=256:fail("Passwort muss 12-256 Zeichen haben")
+            if new_user!=entries[name].get("valid users"):
+                if not any(v.get("valid users")==new_user for v in entries.values()):
+                    fail("Der neue SMB-Benutzer muss bereits in einer anderen verwalteten Freigabe existieren")
+                verify_user(new_user,password)
+                entries[name]["valid users"]=new_user
         entries[name]["read only"]="no" if request.get("writable",True) else "yes"
         write(entries)
     elif action=="password":
