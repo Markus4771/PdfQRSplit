@@ -144,3 +144,7 @@ Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen da
 ## DATEV-Samba-Profilspeicherung: Fehlerbehebung 14.10.2026
 
 Die frühere Fehlermeldung `Profil ungültig: DATEV-Ausgang muss eine geschützte, schreibgeschützte Samba-Freigabe sein` trat auf, weil `app.py` beim Profilspeichern ausschließlich prüfte, aber keinen Schutz aktivierte. Neu: `ensure_datev_samba_protection()` liest den Status über `samba_call(list)` und ruft für die explizit gewählte DATEV-Ausgangsfreigabe `protect-datev` auf, falls nötig. Konkrete Samba-RPC-Fehler werden in der GUI ausgegeben. In `/add` und `/profile-update` integriert. Achtung: Die ausgewählte Freigabe wird dadurch SMB-schreibgeschützt; unbedingt eigene DATEV-Freigabe verwenden, keine gemeinsam genutzten Testfreigaben. `README.md` ebenfalls aktualisiert. Deployment noch ausstehend; `git pull --ff-only && bash install.sh`.
+
+## DATEV: QR-Trennblätter bleiben auf Wunsch enthalten
+
+`app.py`: DATEV-Profil verlangt nur `qr_split=1`; `remove_separators` darf 0 sein. `worker.sections` übernimmt vorhandene QR-Trennseite bei deaktiviertem Entfernen als erste Seite des nächsten Einzelbelegs. Achtung: identische QR-Trennseiten beeinflussen visuelle Fingerprint-Dublettenprüfung; Sicherheit mit Testbelegen validieren. Keine Änderung des Standardprofils oder der bisherigen getrennten PDF-Verarbeitung.
