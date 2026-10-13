@@ -21,6 +21,7 @@ usermod -aG qrscan-share-read qrscan
 install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan
 install -d -o root -g root -m 0755 /opt/qrscan
 install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
+install -d -o root -g root -m 0755 /srv/samba-shares
 install -m 0755 app.py /opt/qrscan/app.py
 install -m 0755 worker.py /opt/qrscan/worker.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
@@ -146,6 +147,8 @@ systemctl restart qrscan-watcher.service
 systemctl enable qrscan-web.service
 systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
+systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
+/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
 echo "Nach dem Anlegen von Profilen einmal: sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py"
 echo "Selbsttest: sudo /opt/qrscan/venv/bin/python /opt/qrscan/selftest.py"
