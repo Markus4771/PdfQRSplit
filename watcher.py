@@ -101,8 +101,9 @@ def once(con,profile,shares,seen):
             if row:
                 status,attempts,next_retry=row
                 now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-                if status!="retry" or attempts>=3 or (next_retry and next_retry>now):
+                if status not in ("retry","replay") or (status=="retry" and (attempts>=3 or (next_retry and next_retry>now))):
                     continue
+            manual_replay=bool(row and row[0]=="replay")
             opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches[:5])))
             opts.update(blank_threshold=switches[5],languages=switches[6],output_type=switches[7],rotate_pages=bool(switches[8]),deskew=bool(switches[9]))
             qr=con.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
@@ -129,7 +130,7 @@ def once(con,profile,shares,seen):
                         return h.digest()
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
-                    result=run(snapshot,destination,qr,opts,output_stem=path.stem)
+                    result=run(snapshot,destination,qr,opts,output_stem=(path.stem+"_wiederholung_"+digest[:12] if manual_replay else path.stem))
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(result),digest))
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
