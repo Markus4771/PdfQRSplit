@@ -250,3 +250,7 @@ git pull --ff-only
 bash install.sh
 systemctl status qrscan-watcher --no-pager
 ```
+
+## Korrektur der manuellen Wiederholung bei vorhandenen Ausgaben
+
+Diagnose: Aufträge mit `replay_count=0` scheiterten mit `Ausgabedatei bereits vorhanden: *_0001.pdf`, während manuelle Wiederholungen mit `replay_count>0` erfolgreich waren. Neu: `output_naming.py` verwendet bei der **ersten** Verarbeitung den Originalnamen nur, wenn `<name>_0001.pdf` noch nicht existiert; anderenfalls erstellt der Watcher einen eindeutigen Ausgabestamm `<name>_neu_<12-stelliger-Dateihash>`. Ein manueller Klick nutzt weiterhin `<name>_wiederholung_<hash>_<laufende Nummer>`. Vorhandene Dateien bleiben unangetastet; falls auch der alternative Name existiert, meldet die Verarbeitung weiterhin einen sicheren Konflikt statt zu überschreiben. Bereits als `error` eingetragene Altaufträge können in **Aufträge & Fehler** mit dem vorhandenen Button erneut angestoßen werden. Eine automatische Endlosschleife entsteht nicht. `test_output_naming.py` läuft mit den Installer-Tests.
