@@ -322,3 +322,7 @@ DATEV-Verarbeitungsprofile besitzen jetzt zusätzlich **Original-Archiv (separat
 ## Fehlerbehebung: DATEV-Profil trotz aktivierter QR-Trennung abgelehnt
 
 Nach Hinzufügen der Archivfreigabe verwendete `app.py` bei der Profilaktualisierung irrtümlich falsche Indizes im von `profile_settings.check()` zurückgegebenen Tupel. Das führte zu der Meldung `DATEV-Modus erfordert QR-Trennung`, obwohl QR-Trennung aktiviert war. Die Indizes für `qr_split` (3), `datev_mode` (13) und `archive_share` (14) sind korrigiert. Separates Originalarchiv wählen; `Ausgang-Test` ist keine empfohlene Archivfreigabe. Update: `git pull --ff-only && bash install.sh`.
+
+## DATEV-Profil QR-Prüfung: Diagnose (14.10.2026)
+
+Bei Profiländerungen prüft `app.py` nun unmittelbar die übermittelten Formularfelder `qr_split` und `datev_mode`, statt Tupelindizes zu verwenden. Wenn trotz aktivierter QR-Code-Trennung eine Fehlermeldung erscheint, `/opt/qrscan/app.py` auf dem Zielsystem aktualisieren und `qrscan-web` neu starten (via `git pull --ff-only && bash install.sh`). Die neue Fehlermeldung zeigt explizit `qr_split=aus, datev_mode=an`, wenn der Server die QR-Checkbox nicht erhält. QR-Trennblätter entfernen bleibt optional.
