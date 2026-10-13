@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 from worker import run
+from retry_policy import MAX_ATTEMPTS, should_retry, next_retry
 from profile_settings import migrate,SELECT
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
@@ -103,9 +104,9 @@ def once(con,profile,shares,seen):
             if row:
                 status,attempts,next_retry,replay_count=row
                 now=datetime.datetime.now(datetime.timezone.utc).isoformat()
-                if status not in ("retry","replay") or (status=="retry" and (attempts>=3 or (next_retry and next_retry>now))):
+                if status not in ("retry","replay") or (status=="retry" and (attempts>=MAX_ATTEMPTS or (next_retry and next_retry>now))):
                     continue
-            manual_replay=bool(row and row[0]=="replay")
+            manual_replay=bool(row and replay_count>0)
             opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches[:5])))
             opts.update(blank_threshold=switches[5],languages=switches[6],output_type=switches[7],rotate_pages=bool(switches[8]),deskew=bool(switches[9]))
             qr=con.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
@@ -137,14 +138,15 @@ def once(con,profile,shares,seen):
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
                 attempts=con.execute("SELECT attempts FROM jobs WHERE signature=?",(digest,)).fetchone()[0]
-                retryable=isinstance(ex,(OSError,TimeoutError)) and not isinstance(ex,FileExistsError)
-                if retryable and attempts<3:
-                    later=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=5*attempts)).isoformat()
-                    con.execute("UPDATE jobs SET status='retry',details=?,next_retry=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(ex)[:1000],later,digest))
-                    logging.warning("Temporary error; retry attempt %d/3 planned: %s",attempts,path)
+                if should_retry(ex,attempts):
+                    later=next_retry(attempts)
+                    message=f"Vorübergehender Fehler (Versuch {attempts}/{MAX_ATTEMPTS}); nächster Versuch: {later}. {ex}"
+                    con.execute("UPDATE jobs SET status='retry',details=?,next_retry=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(message[:1000],later,digest))
+                    logging.warning("Temporary error; retry %d/%d at %s: %s",attempts,MAX_ATTEMPTS,later,path)
                 else:
-                    con.execute("UPDATE jobs SET status='error',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(ex)[:1000],digest))
-                    logging.exception("Processing failed: %s",path)
+                    reason=f"Verarbeitung nach {attempts} Versuch(en) beendet: {ex}"
+                    con.execute("UPDATE jobs SET status='error',details=?,next_retry=NULL,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(reason[:1000],digest))
+                    logging.exception("Processing failed permanently: %s",path)
             con.commit()
         except (OSError,sqlite3.Error,ValueError) as exc:
             logging.error("Unable to inspect %s: %s",path,exc)
