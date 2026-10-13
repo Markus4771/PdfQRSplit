@@ -196,7 +196,7 @@ class Handler(BaseHTTPRequestHandler):
             smb_html+="<form method='post' action='/smb-delete'><input type='hidden' name='name' value='"+safe+"'><button>Freigabe entfernen (Dateien bleiben)</button></form>"
         smb_html+="</section>"
         if not result.get("ok"): smb_html="<p class='notice'>"+html.escape(result.get("error","Samba-Fehler"))+"</p>"+smb_html
-        self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
+        self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
         if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention"):return self.page("Nicht gefunden",404)
@@ -237,7 +237,7 @@ class Handler(BaseHTTPRequestHandler):
             if action=="update":payload.update(writable=get("writable")=="yes",user=get("user").strip(),password=get("password"))
             if action=="delete":
                 with db() as con:
-                    used=con.execute("SELECT COUNT(*) FROM profiles WHERE input_share=? OR output_share=?",(get("name"),get("name"))).fetchone()[0]
+                    used=con.execute("SELECT COUNT(*) FROM profiles WHERE input_share=? OR output_share=? OR archive_share=?",(get("name"),get("name"),get("name"))).fetchone()[0]
                 if used:return self.page("<h1>Freigabe ist noch einem Profil zugeordnet</h1>",409)
             outcome=samba_call(payload)
             if not outcome.get("ok"):return self.page("<h1>Samba-Fehler</h1><p>"+html.escape(outcome.get("error","Fehler"))+"</p>",400)
@@ -256,23 +256,35 @@ class Handler(BaseHTTPRequestHandler):
                     return self.page("DATEV-Modus benötigt QR-Trennung; QR-Trennblätter dürfen erhalten bleiben",400)
                 if datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? LIMIT 1",(out,)).fetchone():
                     return self.page("DATEV-Ausgang muss exklusiv sein",409)
+                if c.execute("SELECT 1 FROM profiles WHERE archive_share IN (?,?) LIMIT 1",(inp,out)).fetchone():
+                    return self.page("Eingang/Ausgang ist als Original-Archiv reserviert",409)
                 if not datev and c.execute("SELECT 1 FROM profiles WHERE output_share=? AND datev_mode=1 LIMIT 1",(out,)).fetchone():
                     return self.page("Ausgang bereits für DATEV reserviert",409)
+                archive=get("archive_share")
+                if archive and (not datev or archive not in shares() or archive in (inp,out)):
+                    return self.page("Ungültige Original-Archiv-Freigabe",400)
+                if archive and c.execute("SELECT 1 FROM profiles WHERE input_share=? OR output_share=? OR archive_share=? LIMIT 1",(archive,archive,archive)).fetchone():
+                    return self.page("Original-Archiv wird bereits durch ein anderes Profil genutzt",409)
                 if datev:
                     try:ensure_datev_samba_protection(out)
                     except ValueError as exc:return self.page("DATEV-Schutz: "+html.escape(str(exc)),409)
-                try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,datev_mode) VALUES (?,?,?,?,?,?,?,?,?)",(name,inp,out,*values,datev))
+                try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,datev_mode,archive_share) VALUES (?,?,?,?,?,?,?,?,?,?)",(name,inp,out,*values,datev,archive))
                 except sqlite3.IntegrityError:return self.page("Profilname schon vorhanden",409)
             elif self.path=="/profile-update":
                 try:
                     ident=int(get("id"))
                     values=check(data,shares())
-                    if values[-1] and not values[4]:
+                    if values[14] and not values[4]:
                         raise ValueError("DATEV-Modus erfordert QR-Trennung; QR-Trennblätter dürfen erhalten bleiben")
-                    if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[-1])).fetchone():
+                    if c.execute("SELECT 1 FROM profiles WHERE id<>? AND output_share=? AND (datev_mode=1 OR ?=1) LIMIT 1",(ident,values[2],values[14])).fetchone():
                         raise ValueError("DATEV-Ausgang muss exklusiv sein")
-                    if values[-1]:ensure_datev_samba_protection(values[2])
-                    c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=? WHERE id=?",(*values,ident))
+                    archive=values[15]
+                    if archive and c.execute("SELECT 1 FROM profiles WHERE id<>? AND (input_share=? OR output_share=? OR archive_share=?) LIMIT 1",(ident,archive,archive,archive)).fetchone():
+                        raise ValueError("Original-Archiv-Freigabe wird bereits verwendet")
+                    if c.execute("SELECT 1 FROM profiles WHERE id<>? AND archive_share IN (?,?) LIMIT 1",(ident,values[1],values[2])).fetchone():
+                        raise ValueError("Eingang/Ausgang wird bereits als Archiv genutzt")
+                    if values[14]:ensure_datev_samba_protection(values[2])
+                    c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=?,archive_share=? WHERE id=?",(*values,ident))
                 except (ValueError,sqlite3.IntegrityError) as exc:
                     return self.page("Profil ungültig: "+html.escape(str(exc)),400)
             elif self.path=="/delete":
