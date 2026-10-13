@@ -27,6 +27,7 @@ id -u qrscan >/dev/null 2>&1 || useradd --system --home-dir /var/lib/qrscan --sh
 usermod -aG qrscan-share-read qrscan
 install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan
 install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan/datev-review
+install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan/original-archive
 install -d -o root -g root -m 0755 /opt/qrscan
 install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -d -o root -g root -m 0755 /srv/samba-shares
@@ -38,6 +39,8 @@ install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0644 profile_settings.py /opt/qrscan/profile_settings.py
 install -m 0644 safe_publish.py /opt/qrscan/safe_publish.py
 install -m 0644 datev_handoff.py /opt/qrscan/datev_handoff.py
+install -m 0644 original_archive.py /opt/qrscan/original_archive.py
+install -m 0644 test_original_archive.py /opt/qrscan/test_original_archive.py
 install -m 0644 datev_visual.py /opt/qrscan/datev_visual.py
 install -m 0644 test_datev_visual.py /opt/qrscan/test_datev_visual.py
 install -m 0644 test_datev_handoff.py /opt/qrscan/test_datev_handoff.py
@@ -229,7 +232,7 @@ systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
-/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual
+/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive
 echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
 bash ./install_fluent_bit.sh
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
