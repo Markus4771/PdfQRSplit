@@ -56,3 +56,7 @@ Neuer `watcher.py` und `qrscan-watcher.service` im Installer. Liest die Profil-S
 ## Schritt 2 implementiert – experimentell
 
 `watcher.py` führt nun Profile automatisch aus, wenn Eingangsdateien mindestens 30 Sekunden stabil erscheinen und als PDF geöffnet werden können. Es verwendet die bestehenden Eingangs-/Ausgangszuordnungen, verarbeitet mittels `worker.run`, belässt die Quelle und speichert Jobstatus in SQLite. Fehler werden protokolliert, vorerst ohne automatischen Retry. Noch keine vollständigen Samba-ACLs, GUI-Jobliste oder Debian-Integrationstests. Alte Read-only-Aussage aus Schritt 1 ist überholt.
+
+## Punkt 3 – 13.10.2026
+
+`sync_permissions.py` ist als root ausführbarer ACL-Helfer für bereits verwaltete Profile hinzugefügt; Installer kopiert ihn, ändert Freigabe-ACLs nicht automatisch. systemd-Watcher erlaubt nun Schreiben unter /srv/samba-shares, sofern Unix-Rechte vorhanden sind. `watcher.py` speichert Wiederholungsversuche, wiederholt vorübergehende IO-Fehler maximal 3-mal und markiert nach Neustarts unterbrochene Jobs zur manuellen Prüfung. Noch nicht auf Debian 13 getestet, noch keine integrierte Samba-Freigabenerstellung.
