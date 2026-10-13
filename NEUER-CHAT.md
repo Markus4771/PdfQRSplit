@@ -160,3 +160,7 @@ Neues Profilfeld `archive_share` in `profile_settings.py`, DB-Migration und Drop
 ## 14.10.2026: Fix Profil-Speichern mit Archiv-Auswahl
 
 `app.py` verwendete nach Schema-Erweiterung fälschlich `values[14]` als DATEV-Flag und `values[4]` als QR-Trennung. Tatsächlich gibt `check()` `qr_split` bei Index 3, `datev_mode` bei 13 und `archive_share` bei 14 zurück. Indizes und Exklusivprüfung korrigiert. Screenshot zeigte QR-Trennung aktiv, trotzdem unzutreffende Fehlermeldung. Für Archiv eine neue, eigene Samba-Freigabe nutzen. GitHub geändert, Installation noch offen.
+
+## DATEV-Profil QR-Prüfung: Diagnose (14.10.2026)
+
+Bei Profiländerungen prüft `app.py` nun unmittelbar die übermittelten Formularfelder `qr_split` und `datev_mode`, statt Tupelindizes zu verwenden. Wenn trotz aktivierter QR-Code-Trennung eine Fehlermeldung erscheint, `/opt/qrscan/app.py` auf dem Zielsystem aktualisieren und `qrscan-web` neu starten (via `git pull --ff-only && bash install.sh`). Die neue Fehlermeldung zeigt explizit `qr_split=aus, datev_mode=an`, wenn der Server die QR-Checkbox nicht erhält. QR-Trennblätter entfernen bleibt optional.
