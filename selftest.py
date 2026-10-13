@@ -24,8 +24,8 @@ def command(*args):
     subprocess.run(args,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=15)
 
 def syntax():
-    for filename in ("app.py","watcher.py","worker.py","jobs_ui.py","sync_permissions.py","safe_publish.py","profile_settings.py","samba_helper.py"):
-        path=(Path("/usr/local/lib/qrscan") if filename=="samba_helper.py" else BASE)/filename
+    for filename in ("app.py","watcher.py","worker.py","jobs_ui.py","sync_permissions.py","safe_publish.py","profile_settings.py","samba_helper.py","samba_rpc.py"):
+        path=(Path("/usr/local/lib/qrscan") if filename in ("samba_helper.py","samba_rpc.py") else BASE)/filename
         compile(path.read_bytes(),str(path),"exec")
     return True
 
@@ -61,6 +61,7 @@ def main():
     check("Samba-Konfiguration gültig",lambda:command("testparm","-s"))
     check("Datenbank-Schema",db_check)
     check("Dienstkonto und Zugangsdaten",permissions)
+    check("Samba-Verwaltungsdienst läuft",lambda:test_service("qrscan-samba"))
     check("Webdienst läuft",lambda:test_service("qrscan-web"))
     check("Verarbeitungsdienst läuft",lambda:test_service("qrscan-watcher"))
     check("Verwaltete Samba-Freigaben vorhanden",samba_check)
