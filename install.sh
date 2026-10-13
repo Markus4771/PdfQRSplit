@@ -11,7 +11,7 @@ apt-get update
 apt-get install -y --no-install-recommends \
   ca-certificates python3 python3-venv python3-pip python3-dev \
   build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
-  poppler-utils ghostscript qpdf imagemagick \
+  poppler-utils ghostscript qpdf imagemagick default-jre-headless \
   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
   samba smbclient acl python3-cryptography
 echo "[2/7] Benutzer und Verzeichnisse"
