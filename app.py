@@ -8,6 +8,7 @@ import json
 import os
 import re
 import secrets
+import socket
 import sqlite3
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -73,10 +74,20 @@ def valid_auth(value):
 
 def samba_call(payload):
     try:
-        proc=subprocess.run(["sudo","-n","/usr/local/lib/qrscan/samba_helper.py"],input=json.dumps(payload),capture_output=True,text=True,timeout=30)
-        return json.loads(proc.stdout)
-    except (OSError,ValueError,subprocess.TimeoutExpired):
-        return {"ok":False,"error":"Samba-Verwaltung nicht erreichbar"}
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as conn:
+            conn.settimeout(50)
+            conn.connect("/run/qrscan/samba.sock")
+            conn.sendall(json.dumps(payload).encode())
+            conn.shutdown(socket.SHUT_WR)
+            reply=b""
+            while len(reply)<65536:
+                data=conn.recv(4096)
+                if not data:break
+                reply+=data
+        return json.loads(reply)
+    except (OSError,ValueError):
+        return {"ok":False,"error":"Samba-Verwaltungsdienst nicht erreichbar"}
+
 
 STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-width:1080px;margin:35px auto;padding:0 16px}header{display:flex;justify-content:space-between;align-items:center}section{background:white;border:1px solid #ddd;border-radius:12px;padding:22px;margin:18px 0}input,select{width:100%;box-sizing:border-box;padding:10px;margin:6px 0 14px;border:1px solid #ccc;border-radius:7px}input[type=checkbox]{width:auto;margin:0 7px 0 0}label{display:block;margin:8px 0}button{background:#26292e;color:white;padding:11px 17px;border:0;border-radius:8px;cursor:pointer}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.small{color:#666;font-size:13px}.notice{color:#964514}@media(max-width:700px){.row{grid-template-columns:1fr}}</style>"""
 
