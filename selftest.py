@@ -24,7 +24,7 @@ def command(*args):
     subprocess.run(args,check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=15)
 
 def syntax():
-    for filename in ("app.py","watcher.py","worker.py","jobs_ui.py","sync_permissions.py"):
+    for filename in ("app.py","watcher.py","worker.py","jobs_ui.py","sync_permissions.py","safe_publish.py","profile_settings.py","samba_helper.py"):
         path=BASE/filename
         compile(path.read_bytes(),str(path),"exec")
     return True
