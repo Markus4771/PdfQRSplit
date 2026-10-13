@@ -80,7 +80,8 @@ def run(source, out_dir, qr_text, options, output_stem=None):
                 subprocess.run(cmd,check=True,timeout=900,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                 current=ocr
             final=target/f"{output_stem or source.stem}_{index:04}.pdf"
-            if final.exists():raise FileExistsError(f"Ausgabedatei bereits vorhanden: {final}")
+            if not options.get("datev_mode") and final.exists():
+                raise FileExistsError(f"Ausgabedatei bereits vorhanden: {final}")
             staged=temp/f"publish-{index:04}.pdf"
             staged.write_bytes(current.read_bytes())
             generated.append((staged,final))
