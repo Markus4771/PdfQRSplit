@@ -110,7 +110,7 @@ Environment=QRSCAN_PORT=8086
 ExecStart=/opt/qrscan/venv/bin/python /opt/qrscan/app.py
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=yes
+NoNewPrivileges=no
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
