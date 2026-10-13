@@ -117,6 +117,20 @@ def once(con,profile,shares,seen):
             manual_replay=bool(row and replay_count>0)
             opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches[:5])))
             opts["datev_mode"]=bool(switches[10])
+            if opts["datev_mode"]:
+                config_text=SAMBA.read_text(errors="replace")
+                current=None;protected=False
+                for line in config_text.splitlines():
+                    item=line.strip()
+                    if item.startswith("[") and item.endswith("]"):
+                        current=item[1:-1]
+                    elif current==out_share and "=" in item:
+                        k,v=(part.strip() for part in item.split("=",1))
+                        if k=="comment" and v=="QRSCAN-DATEV-READONLY":
+                            protected=True
+                if not protected:
+                    logging.error("DATEV profile %s: destination Samba share is not DATEV protected; refusing handoff",name)
+                    continue
             if opts["datev_mode"] and any(other[0]!=ident and other[3]==out_share for other in configs(con)):
                 logging.error("DATEV profile %s: destination share also used by another profile",name)
                 continue
