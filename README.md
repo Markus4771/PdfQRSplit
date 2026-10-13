@@ -92,3 +92,16 @@ Nur Pfade verwenden, auf die `qrscan` zugreifen darf. Eine manuelle Testausführ
 **Wichtige Einschränkung:** Die aktuelle Upstream-Funktion `crop_pdf_margins` von Scan PDF Cleaner kürzt einen *festen* Rand (hier 12 pt) und erkennt die tatsächlichen Seitenränder nicht automatisch. `--crop` deshalb erst nach Sichtprüfung verwenden. Die Leerseitenerkennung verwendet derzeit den festen Upstream-Schwellwert 0,5% und behält aus Sicherheitsgründen mindestens eine Seite. Das angekündigte regelbare GUI-Schwellwertfeld und der Vorschaumodus fehlen noch. Keine Eignung für produktive Dokumente ohne Tests.
 
 QR-Decoder ist `pyzbar` mit gerenderten Seiten; das bisher geklonte upstream-PdfQRSplit liegt als Referenz daneben. Grund: dessen QR-Erkennung setzt eingebettete PDF-Bilder voraus und würde nicht alle gerenderten PDF-Formen zuverlässig erfassen.
+
+## Eingangsordner-Überwachung (Schritt 1)
+
+`watcher.py` ist ein eigenständiger **read-only** systemd-Dienst `qrscan-watcher.service`. Er lädt die konfigurierten Eingangsfreigaben aus SQLite und die Pfadzuordnung aus der vom Stirling-Samba-Manager verwalteten Include-Datei. Im Standardintervall von fünf Sekunden prüft er PDFs (nur direkt im jeweiligen Eingangsordner) und protokolliert eine Datei, wenn Größe und Änderungszeitpunkt in drei aufeinanderfolgenden Durchläufen unverändert blieben. **Er verarbeitet, verschiebt oder löscht noch keine PDFs.**
+
+```bash
+sudo systemctl status qrscan-watcher --no-pager
+sudo journalctl -u qrscan-watcher -f
+```
+
+**Zugriffsrechte:** Der eigene Benutzer `qrscan` muss die Eingangspfad-Verzeichnisse lesen und betreten dürfen. Die Installation verändert deren bestehenden Eigentümer/ACLs bewusst nicht. Werden Fehler `Permission denied` oder `Input share not accessible` protokolliert, müssen die betreffenden Pfade und ACLs zunächst für `qrscan` freigegeben werden. Dies ist kein Freigabenmanager und ersetzt die spätere Rechteintegration nicht.
+
+**Offen:** Profile tatsächlich ausführen, Dateistabilität zusätzlich durch Datei-Öffnungs- und PDF-Lesbarkeitstests verifizieren, Dateijobs persistent speichern, Fehler- und Wiederholungsverarbeitung, Integration des vollständigen Samba-Editors.
