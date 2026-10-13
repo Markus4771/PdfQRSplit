@@ -52,3 +52,7 @@ Die Codeprüfung zeigte spezielle Stirling-Pfade, Stirling-ACLs und eine eigene 
 ## Umsetzung Schritt 1: Eingang überwachen
 
 Neuer `watcher.py` und `qrscan-watcher.service` im Installer. Liest die Profil-Samba-Eingänge und erkennt stabile PDF-Dateien, loggt aber nur. Kein Löschen/Verschieben/Verarbeiten. Eigene Zugriffsrechte für `qrscan` bleiben noch zu konfigurieren und auf Debian zu testen. Nächster Schritt: echte Job-Verarbeitung nach der Erkennung.
+
+## Schritt 2 implementiert – experimentell
+
+`watcher.py` führt nun Profile automatisch aus, wenn Eingangsdateien mindestens 30 Sekunden stabil erscheinen und als PDF geöffnet werden können. Es verwendet die bestehenden Eingangs-/Ausgangszuordnungen, verarbeitet mittels `worker.run`, belässt die Quelle und speichert Jobstatus in SQLite. Fehler werden protokolliert, vorerst ohne automatischen Retry. Noch keine vollständigen Samba-ACLs, GUI-Jobliste oder Debian-Integrationstests. Alte Read-only-Aussage aus Schritt 1 ist überholt.
