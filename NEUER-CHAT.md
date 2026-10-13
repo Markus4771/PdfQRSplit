@@ -29,3 +29,10 @@ Die Codeprüfung zeigte spezielle Stirling-Pfade, Stirling-ACLs und eine eigene 
 ## Stand GitHub
 
 `Markus4771/PdfQRSplit`: Dokumentation und Beispiel-Profilkonfiguration angelegt; noch keine installierbare Anwendung. Nicht mit fertiger Installation verwechseln.
+
+## Implementierung in dieser Entwicklungsrunde
+
+- `app.py`: erste passwortgeschützte Konfigurations-GUI auf Port 8086; globaler QR-Text, Profilzuordnung, optionale Verarbeitungsschritte, SQLite.
+- `install.sh`: Debian-Installer für die Web-GUI, eigener Benutzer, systemd, zufälliges Startpasswort und erzwungener Erstwechsel.
+- Lesen bestehender managerverwalteter SMB-Shares aus `/etc/samba/share-manager.conf`; aus Sicherheitsgründen keine Kopie des privilegierten Samba-Helpers.
+- **Noch offen:** Echte QR-/Leerseiten-/OCR-Verarbeitung, Tests auf Debian, Bearbeitung vorhandener Profile, Samba-UI-Integration.
