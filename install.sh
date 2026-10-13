@@ -24,6 +24,7 @@ install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -m 0755 app.py /opt/qrscan/app.py
 install -m 0755 worker.py /opt/qrscan/worker.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
+install -m 0755 sync_permissions.py /opt/qrscan/sync_permissions.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
 /opt/qrscan/venv/bin/python -m pip install --disable-pip-version-check --upgrade pip
@@ -87,7 +88,7 @@ WantedBy=multi-user.target
 EOF
 cat >/etc/systemd/system/qrscan-watcher.service <<'EOF'
 [Unit]
-Description=QR Scan Manager read-only PDF inbox watcher
+Description=QR Scan Manager profile-based PDF processing service
 After=qrscan-web.service
 Wants=qrscan-web.service
 [Service]
@@ -104,7 +105,8 @@ NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadOnlyPaths=/srv/samba-shares /etc/samba /var/lib/qrscan
+ReadWritePaths=/var/lib/qrscan /srv/samba-shares
+ReadOnlyPaths=/etc/samba
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -115,4 +117,5 @@ systemctl enable qrscan-web.service
 systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
-echo "WICHTIG: QR-Einzeldatei-PDF-Worker ist vorhanden; automatische Überwachung und vollständige Samba-GUI fehlen noch."
+echo "Nach dem Anlegen von Profilen einmal: sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py"
+echo "Produktivbetrieb erst nach Test! Samba-GUI und Wiederherstellung abgebrochener Jobs stehen noch aus."
