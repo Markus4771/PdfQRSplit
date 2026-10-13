@@ -3,6 +3,13 @@ set -Eeuo pipefail
 trap 'echo "Installation fehlgeschlagen in Zeile $LINENO" >&2' ERR
 if [[ ${EUID} -ne 0 ]]; then echo "Bitte mit sudo ausführen: sudo bash install.sh" >&2; exit 1; fi
 if [[ ! -f app.py ]]; then echo "Im Projektverzeichnis ausführen (app.py fehlt)" >&2; exit 1; fi
+echo "Python-Syntax vor Installationsänderungen prüfen"
+python3 - <<'PY'
+from pathlib import Path
+for path in sorted(Path(".").glob("*.py")):
+    compile(path.read_bytes(), str(path), "exec")
+print("Python-Syntaxprüfung erfolgreich")
+PY
 . /etc/os-release
 if [[ "${ID:-}" != debian ]]; then echo "Warnung: nur für Debian vorgesehen (gefunden: ${ID:-unbekannt})"; fi
 export DEBIAN_FRONTEND=noninteractive
