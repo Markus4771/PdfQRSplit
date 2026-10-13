@@ -171,3 +171,19 @@ In `app.py` sind Formulare zum Erstellen, Einstellen der Schreibberechtigung, Pa
 Bestehende Profile sind jetzt direkt in der Weboberfläche bearbeitbar: Name, Samba-Eingang/-Ausgang, QR-Trennung, QR-Trennblatt entfernen, Leerseiten, Randbeschneidung und OCR. Zusätzlich je Profil: Leerseiten-Schwellwert (0–2 %), Sprache Deutsch/Englisch/beide, PDF oder PDF/A, OCR-Rotation und Entzerrung (Deskew). Neue Profile bekommen zunächst Standardwerte und können danach bearbeitet werden. Bestehende SQLite-Datenbanken werden beim Start automatisch um neue Spalten ergänzt. Watcher und Worker lesen die Werte für neue Jobs. Bereits laufende Jobs ändern sich dadurch nicht.
 
 **Noch zu testen:** Live-Installation auf Debian 13; insbesondere das OCRmyPDF-PDF/A-Verhalten und schwach bedruckte Seiten. Auf bestehenden Installationen bei Updates vorher SQLite sichern. Die Einstellung *Ränder beschneiden* verwendet weiterhin einen festen Beschnitt und ist keine automatische Inhaltserkennung.
+
+## Punkt 3 – Absicherung der PDF-Verarbeitung (13.10.2026)
+
+- `watcher.py` sperrt einen zweiten parallelen Überwachungsprozess per Linux-`flock`.
+- Neue PDF-Aufträge werden anhand von Profil, **Quellpfad und Dateiinhalt** identifiziert; gleiche Inhalte unter verschiedenen Dateinamen werden nicht mehr versehentlich zusammengefasst.
+- Vor der Verarbeitung wird eine private Kopie der Quelldatei erstellt und mit der Quelle verglichen. Ändert der Scanner die Quelldatei dabei, schlägt der Auftrag sicher fehl. Originale bleiben erhalten.
+- `safe_publish.py` veröffentlicht fertige Dateien über dateisysteminterne Hardlinks ohne Überschreiben vorhandener Zieldateien. Ausgaben sind erst nach vollständigem Staging sichtbar; bei gewöhnlichen Fehlern werden die in diesem Durchlauf bereits publizierten Dateien zurückgenommen.
+- `test_safe_publish.py` enthält Regressionstests für erfolgreiches Veröffentlichen, Nichtüberschreiben und das Abweisen leerer Ausgaben.
+
+Tests (auf dem späteren Debian-System):
+```bash
+cd /opt/qrscan
+/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish
+```
+
+**Grenzen:** Bei Stromausfall während der Veröffentlichung kann bereits eine Teilmenge fertiger Dokumente im Ziel liegen. Der Auftrag wird beim Neustart als unterbrochen markiert und muss kontrolliert geprüft werden; die Ausgaben werden nicht automatisch überschrieben. Die Dateistabilitätsprüfung ist keine verbindliche Scanner-Upload-Abschlussmeldung. Hardlinks erfordern einen lokal kompatiblen Ziel-Dateisystemtyp und eine gemeinsame Partition für die temporären und finalen Ausgaben. **Noch kein vollständiger Debian-13-Livetest.**
