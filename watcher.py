@@ -64,6 +64,9 @@ def connect():
         con.execute("ALTER TABLE jobs ADD COLUMN next_retry TEXT")
     if "replay_count" not in columns:
         con.execute("ALTER TABLE jobs ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0")
+    con.execute("""CREATE TABLE IF NOT EXISTS archived_signatures(
+       signature TEXT PRIMARY KEY, archived_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
     migrate(con)
     con.commit()
     return con
@@ -103,6 +106,8 @@ def once(con,profile,shares,seen):
             digest=fingerprint(path,stat,ident)
             latest=path.stat()
             if (stat.st_ino,stat.st_size,stat.st_mtime_ns)!=(latest.st_ino,latest.st_size,latest.st_mtime_ns):continue
+            archived=con.execute("SELECT 1 FROM archived_signatures WHERE signature=?",(digest,)).fetchone()
+            if archived:continue
             row=con.execute("SELECT status,attempts,next_retry,replay_count FROM jobs WHERE signature=?",(digest,)).fetchone()
             if row:
                 status,attempts,next_retry,replay_count=row
