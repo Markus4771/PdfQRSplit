@@ -157,3 +157,11 @@ sudo journalctl -u qrscan-web -u qrscan-watcher -n 100 --no-pager
 **Status:** Der Selbsttest ist implementiert, aber noch **nicht auf einem frischen Debian 13 ausgeführt**. Ein Sandbox-Checkout war mangels DNS/Netzwerk nicht möglich. Es gibt keinen Nachweis einer erfolgreichen Komplettinstallation.
 
 **Bekannter Blocker:** Auf einem frischen Debian ist die eigentliche Samba-Freigabenverwaltung noch nicht produktiv integriert. `samba_helper.py` liegt nur als noch nicht freigeschalteter Code vor; das GUI liest weiterhin `/etc/samba/share-manager.conf`, während der neue Helfer `/etc/samba/qrscan-shares.conf` verwenden würde. Diese Schnittstellen müssen vor dem Produktivtest vereinheitlicht und sicher angebunden werden. `selftest.py` meldet fehlende verwaltete Freigaben ausdrücklich. Auch QR-Trennung, Leerseitenerkennung, OCR und Netzwerk-Rechte müssen mit echten PDFs getestet werden.
+
+## Samba-Verwaltung in einer Oberfläche (Integrationsstand)
+
+In `app.py` sind Formulare zum Erstellen, Einstellen der Schreibberechtigung, Passwortwechsel und Entfernen verwalteter Samba-Freigaben implementiert. Ein SMB-Benutzer kann mehrere Freigaben verwenden, sofern beim Anlegen das bisherige Passwort korrekt angegeben wird. Ein Passwortwechsel wirkt für **alle** Freigaben desselben SMB-Benutzers. SMB-Passwörter werden nicht in SQLite gespeichert. Entfernen einer Freigabe entfernt nur den Samba-Eintrag; Dateien und Benutzer bleiben erhalten. Freigaben, die noch in einem PDF-Profil verwendet werden, können nicht über das GUI entfernt werden.
+
+`install.sh` richtet `/etc/samba/qrscan-shares.conf` als separate Include-Datei ein, erzeugt eine Sicherung der ursprünglichen `smb.conf`, installiert den Root-Helfer unter `/usr/local/lib/qrscan/samba_helper.py` sowie eine eingeschränkte sudoers-Regel für den Dienstbenutzer. GUI, Watcher, ACL-Helfer und Selbsttest verwenden dieselbe Samba-Konfiguration. Bestehende Stirling-Freigaben werden nicht direkt verändert.
+
+**Unbedingt beachten:** Keine vollständige Debian-13-Installation und kein Live-SMB-Test durchgeführt. Das Projekt benötigt einen Testlauf mit zwei Shares und gleichem Benutzer, Passwortwechsel, Windows-Anmeldung, ACL-Prüfung und einem PDF-End-to-End-Test. Die GUI verwendet HTTP Basic Auth: Port 8086 nur in isolierten Administrationsnetzen oder mit vorgeschaltetem TLS verwenden.
