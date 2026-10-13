@@ -18,6 +18,10 @@ class VisualDuplicateTests(unittest.TestCase):
             a=root/"a.pdf";b=root/"b.pdf";db=root/"registry.db"
             self.make_pdf(a,"Invoice ABC-123 Amount 275 EUR")
             self.make_pdf(b,"Invoice ABC-123 Amount 275 EUR")
+            with pymupdf.open(b) as doc:
+                doc.set_metadata({"title":"rescan of ABC-123"})
+                doc.save(root/"b-different.pdf")
+            b=root/"b-different.pdf"
             self.assertTrue(near(fingerprints(a),fingerprints(b)))
             self.assertEqual(len(publish_datev([(a,out/"a.pdf")],out,db,a)["outputs"]),1)
             with self.assertRaisesRegex(ValueError,"DATEV-Dublettenverdacht"):
