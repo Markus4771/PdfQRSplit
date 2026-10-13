@@ -130,3 +130,7 @@ Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen da
 ## DATEV-Quarantäne
 
 `datev_handoff.py` legt bei visuellem Dublettenverdacht die **einzelne fertig verarbeitete Rechnung**, nicht das gesamte Scan-Batch, unter `/var/lib/qrscan/datev-review/verdacht_<digest>.pdf` ab, außerhalb des Samba-DATEV-Zielordners. Registerspalte `datev_suspects.review_path` wird migriert. Kein PDF im DATEV-Ausgang; Originalscan bleibt unangetastet. `app.py` zeigt unter `/datev-review` eine read-only Übersicht; kein unkontrollierter Freigabeknopf. Installer erzeugt geschützten Quarantäneordner (0700) und `test_datev_visual.py` prüft die Dateisicherung. Noch nicht auf Debian praktisch validiert.
+
+## DATEV-Samba-Schutz
+
+`samba_helper.py` bietet `datev_protected` bei `create` und `protect-datev` für bestehende Freigaben. Samba-Konfiguration setzt `read only=yes`, `comment=QRSCAN-DATEV-READONLY`, `veto files=/qrscan-*/`, `hide unreadable=yes`. Spätere `update`-Aufrufe lassen DATEV geschützt schreibgeschützt. `samba_rpc.py` lässt neue Aktion zu. `app.py` zeigt Markierung, Schutzbutton und verlangt markierte DATEV-Samba-Freigabe bei Profilanlage/-änderung. `watcher.py` prüft Markierung plus `read only=yes` vor DATEV-Verarbeitung. Unveränderte gewöhnliche Freigaben. Erfordert Tests mit `testparm` und SMB-Read/Write/Löschprobe; Belegtransfer-Kompatibilität von SMB Nur-Lese noch unbekannt.
