@@ -106,3 +106,7 @@ Update 13.10.2026: Der Button **Verarbeitung wiederholen** startet mit einem Kli
 ## Automatische Fehlerwiederholung
 
 `retry_policy.py` und `test_retry_policy.py` ergänzt. Vorübergehende OSError/TimeoutError: maximal 5 Gesamtversuche, mit 1/2/5/10 Minuten Abstand. FileExistsError, PermissionError, ValueError u. ä. gelten als dauerhaft und werden nicht automatisch wiederholt. Watcher loggt den nächsten Versuch in `jobs.details`, `next_retry` bleibt gesetzt; bei ausgeschöpftem Limit `error`. Bei manuell wiederholtem Auftrag wird eigener Ausgabestamm über `replay_count` auch bei nachfolgenden automatischen Versuchen weiterverwendet. Installer kopiert Modul und führt Test aus. Kein unendliches Wiederholen; QR-Inhaltsabweichungen bleiben normale Eingabe und werden ohne Trennung weiterverarbeitet. Auf Zielserver noch zu testen.
+
+## Fehlerbehebung Dateinamenskollision bei Wiederholung
+
+Praxisausgabe: Bei diversen Dateien `replay_count=0`, Status `error`, weil `Ausgang-Test/<dateiname>_0001.pdf` bereits vorhanden war. Neu: `output_naming.py` setzt bei neuen Aufträgen mit belegtem Originalausgabenamen einen stabilen `_neu_<digest>`-Stamm, bei manuell wiederholten Aufträgen weiterhin `_wiederholung_<digest>_<replay_count>`. `watcher.py` ruft die Funktion auf, Installer installiert Modul samt `test_output_naming.py`. Existierende PDFs werden nicht überschrieben. Bereits fehlerhafte Jobs per GUI manuell erneut freigeben. Vor-Ort-Test ausstehend.
