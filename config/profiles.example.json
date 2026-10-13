@@ -1,0 +1,32 @@
+{
+  "global": {
+    "qr_text": "SCAN-TRENNUNG-001",
+    "input_stability_seconds": 10
+  },
+  "profiles": [
+    {
+      "name": "Scan 1",
+      "input_share": "Scan-Eingang-1",
+      "output_share": "Scan-Ausgang-1",
+      "enabled": true,
+      "qr_split": {
+        "enabled": true,
+        "remove_separator_pages": false
+      },
+      "cleanup": {
+        "remove_blank_pages": false,
+        "threshold": 0.99,
+        "dry_run_first": true,
+        "crop_margins": false
+      },
+      "ocr": {
+        "enabled": false,
+        "languages": "deu+eng",
+        "output_type": "pdf",
+        "skip_existing_text": true,
+        "rotate_pages": false,
+        "deskew": false
+      }
+    }
+  ]
+}
