@@ -24,6 +24,7 @@ install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -m 0755 app.py /opt/qrscan/app.py
 install -m 0755 worker.py /opt/qrscan/worker.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
+install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0755 sync_permissions.py /opt/qrscan/sync_permissions.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
