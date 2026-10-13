@@ -36,7 +36,7 @@ def db():
 
 def shares():
     """Only manager-owned shares under designated root, never arbitrary filesystem paths."""
-    p=Path(os.getenv("QRSCAN_SAMBA_CONFIG","/etc/samba/share-manager.conf"))
+    p=Path(os.getenv("QRSCAN_SAMBA_CONFIG","/etc/samba/qrscan-shares.conf"))
     if not p.is_file(): return []
     results=[]
     current=None; params={}
@@ -68,6 +68,13 @@ def valid_auth(value):
         hashed=hashlib.pbkdf2_hmac("sha256",password.encode(),bytes.fromhex(a["salt"]),a["rounds"]).hex()
         return username=="admin" and hmac.compare_digest(hashed,a["digest"])
     except (OSError,ValueError,KeyError,UnicodeError): return False
+
+def samba_call(payload):
+    try:
+        proc=subprocess.run(["sudo","-n","/usr/local/lib/qrscan/samba_helper.py"],input=json.dumps(payload),capture_output=True,text=True,timeout=30)
+        return json.loads(proc.stdout)
+    except (OSError,ValueError,subprocess.TimeoutExpired):
+        return {"ok":False,"error":"Samba-Verwaltung nicht erreichbar"}
 
 STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-width:1080px;margin:35px auto;padding:0 16px}header{display:flex;justify-content:space-between;align-items:center}section{background:white;border:1px solid #ddd;border-radius:12px;padding:22px;margin:18px 0}input,select{width:100%;box-sizing:border-box;padding:10px;margin:6px 0 14px;border:1px solid #ccc;border-radius:7px}input[type=checkbox]{width:auto;margin:0 7px 0 0}label{display:block;margin:8px 0}button{background:#26292e;color:white;padding:11px 17px;border:0;border-radius:8px;cursor:pointer}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.small{color:#666;font-size:13px}.notice{color:#964514}@media(max-width:700px){.row{grid-template-columns:1fr}}</style>"""
 
@@ -124,10 +131,20 @@ class Handler(BaseHTTPRequestHandler):
             checked=", ".join(k for k,v in zip(FIELDS,p[4:]) if v) or "Keine"
             rows+="<p><b>"+html.escape(p[1])+"</b>: "+html.escape(p[2])+" → "+html.escape(p[3])+"<br><span class='small'>"+html.escape(checked)+"</span></p><form method='post' action='/delete'><input type='hidden' name='id' value='"+str(p[0])+"'><button>Profil entfernen</button></form><hr>"
         msg="<p class='notice'>Keine kompatiblen Samba-Freigaben gefunden. Zuerst Freigaben im bestehenden Samba-Manager anlegen.</p>" if not s else ""
-        self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss")])+"<button>Profil anlegen</button></form></section><section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
+        result=samba_call({"action":"list"})
+        smb_html="<section><h2>Samba-Freigaben</h2><form method='post' action='/smb-create'><label>Freigabename</label><input name='name' required><label>SMB-Benutzer</label><input name='user' required><label>SMB-Passwort (mind. 12 Zeichen)</label><input name='password' type='password' minlength='12' required><label><input type='checkbox' name='writable' checked> Schreibzugriff</label><button>Freigabe anlegen</button></form>"
+        for entry in result.get("shares",[]):
+            safe=html.escape(entry["name"],quote=True)
+            smb_html+="<h3>"+safe+"</h3><p>Benutzer: "+html.escape(entry.get("user",""))+"</p>"
+            smb_html+="<form method='post' action='/smb-update'><input type='hidden' name='name' value='"+safe+"'><select name='writable'><option value='yes'>Lesen/Schreiben</option><option value='no'>Nur lesen</option></select><button>Rechte speichern</button></form>"
+            smb_html+="<form method='post' action='/smb-password'><input type='hidden' name='name' value='"+safe+"'><input type='password' name='password' minlength='12' required placeholder='Neues SMB-Passwort'><button>Passwort ändern</button></form>"
+            smb_html+="<form method='post' action='/smb-delete'><input type='hidden' name='name' value='"+safe+"'><button>Freigabe entfernen (Dateien bleiben)</button></form>"
+        smb_html+="</section>"
+        if not result.get("ok"): smb_html="<p class='notice'>"+html.escape(result.get("error","Samba-Fehler"))+"</p>"+smb_html
+        self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss")])+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -152,6 +169,19 @@ class Handler(BaseHTTPRequestHandler):
                 return self.page("<h1>Wiederholung nicht möglich</h1><p>"+html.escape(message)+"</p>",409)
             self.send_response(303);self.send_header("Location","/jobs");self.end_headers()
             return
+        if self.path.startswith("/smb-"):
+            action=self.path[5:]
+            payload={"action":action,"name":get("name")}
+            if action=="create":payload.update(user=get("user"),password=get("password"),writable="writable" in data)
+            if action=="password":payload["password"]=get("password")
+            if action=="update":payload["writable"]=get("writable")=="yes"
+            if action=="delete":
+                with db() as con:
+                    used=con.execute("SELECT COUNT(*) FROM profiles WHERE input_share=? OR output_share=?",(get("name"),get("name"))).fetchone()[0]
+                if used:return self.page("<h1>Freigabe ist noch einem Profil zugeordnet</h1>",409)
+            outcome=samba_call(payload)
+            if not outcome.get("ok"):return self.page("<h1>Samba-Fehler</h1><p>"+html.escape(outcome.get("error","Fehler"))+"</p>",400)
+            self.send_response(303);self.send_header("Location","/");self.end_headers();return
         with db() as c:
             if self.path=="/qr":
                 value=get("qr").strip()
