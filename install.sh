@@ -14,7 +14,18 @@ PY
 if [[ "${ID:-}" != debian ]]; then echo "Warnung: nur für Debian vorgesehen (gefunden: ${ID:-unbekannt})"; fi
 export DEBIAN_FRONTEND=noninteractive
 echo "[1/7] Debian Pakete installieren"
-apt-get update
+if ! apt-get update; then
+  # Fluent Bit's upstream apt mirror can be temporarily inconsistent.
+  # Disable ONLY that source, then retry the normal Debian update once.
+  if [[ -f /etc/apt/sources.list.d/fluent-bit.list ]]; then
+    echo "WARNUNG: Paketindexfehler; Fluent-Bit-Quelle vorübergehend deaktivieren"
+    mv /etc/apt/sources.list.d/fluent-bit.list /etc/apt/sources.list.d/fluent-bit.list.disabled
+    apt-get update
+  else
+    echo "APT-Aktualisierung fehlgeschlagen; keine Paketquellen geändert" >&2
+    exit 1
+  fi
+fi
 apt-get install -y --no-install-recommends \
   ca-certificates python3 python3-venv python3-pip python3-dev \
   build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
@@ -234,7 +245,13 @@ systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
 /opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive
 echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
-bash ./install_fluent_bit.sh
+if ! bash ./install_fluent_bit.sh; then
+  echo "WARNUNG: Fluent Bit konnte nicht installiert/aktualisiert werden; QR Scan Manager bleibt betriebsbereit." >&2
+  if [[ -f /etc/apt/sources.list.d/fluent-bit.list ]]; then
+    mv /etc/apt/sources.list.d/fluent-bit.list /etc/apt/sources.list.d/fluent-bit.list.disabled
+    echo "Fluent-Bit-Paketquelle für künftige apt-Läufe deaktiviert; nach Behebung des Repository-Fehlers erneut versuchen." >&2
+  fi
+fi
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
 echo "Nach dem Anlegen von Profilen einmal: sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py"
 echo "Selbsttest: sudo /opt/qrscan/venv/bin/python /opt/qrscan/selftest.py"
