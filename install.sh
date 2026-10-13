@@ -23,6 +23,7 @@ install -d -o root -g root -m 0755 /opt/qrscan
 install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -m 0755 app.py /opt/qrscan/app.py
 install -m 0755 worker.py /opt/qrscan/worker.py
+install -m 0755 watcher.py /opt/qrscan/watcher.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
 /opt/qrscan/venv/bin/python -m pip install --disable-pip-version-check --upgrade pip
@@ -84,7 +85,32 @@ ReadWritePaths=/var/lib/qrscan
 [Install]
 WantedBy=multi-user.target
 EOF
+cat >/etc/systemd/system/qrscan-watcher.service <<'EOF'
+[Unit]
+Description=QR Scan Manager read-only PDF inbox watcher
+After=qrscan-web.service
+Wants=qrscan-web.service
+[Service]
+Type=simple
+User=qrscan
+Group=qrscan
+SupplementaryGroups=qrscan-share-read
+WorkingDirectory=/opt/qrscan
+ExecStart=/opt/qrscan/venv/bin/python /opt/qrscan/watcher.py
+Environment=QRSCAN_POLL_SECONDS=5
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/srv/samba-shares /etc/samba /var/lib/qrscan
+[Install]
+WantedBy=multi-user.target
+EOF
 systemctl daemon-reload
+systemctl enable qrscan-watcher.service
+systemctl restart qrscan-watcher.service
 systemctl enable qrscan-web.service
 systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
