@@ -181,6 +181,8 @@ systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
 /opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff
+echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
+bash ./install_fluent_bit.sh
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
 echo "Nach dem Anlegen von Profilen einmal: sudo /opt/qrscan/venv/bin/python /opt/qrscan/sync_permissions.py"
 echo "Selbsttest: sudo /opt/qrscan/venv/bin/python /opt/qrscan/selftest.py"
