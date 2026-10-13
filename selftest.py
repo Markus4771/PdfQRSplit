@@ -25,7 +25,7 @@ def command(*args):
 
 def syntax():
     for filename in ("app.py","watcher.py","worker.py","jobs_ui.py","sync_permissions.py","safe_publish.py","profile_settings.py","samba_helper.py"):
-        path=BASE/filename
+        path=(Path("/usr/local/lib/qrscan") if filename=="samba_helper.py" else BASE)/filename
         compile(path.read_bytes(),str(path),"exec")
     return True
 
