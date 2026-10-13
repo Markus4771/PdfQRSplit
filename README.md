@@ -131,3 +131,13 @@ Der systemd-Dienst darf nun in `/srv/samba-shares` schreiben, sofern Dateirechte
 Fehlerbehandlung: Laufende Jobs werden nach Dienstabbruch als `interrupted` markiert und **nicht automatisch erneut ausgeführt**. Nur vorübergehende Betriebssystem-/I/O-Fehler werden bis zu 3 Mal mit jeweils längerer Wartezeit wiederholt. PDF- oder Dateinamenskonflikte bleiben als Fehler markiert. Originalscans werden nicht gelöscht.
 
 **Noch offen / Testpflicht:** Der ACL-Helfer setzt voraus, dass die Samba-Freigaben bereits verwaltet werden. Auf einer völlig frischen Debian-Installation ohne Samba-Manager müssen wir zuerst die Share-Erstellung integrieren. Keine Tests mit echten SMB-Dateien durchgeführt. Der Scanner muss nach dem Hochladen die PDF schließen; reine Stabilitätszeit ist noch kein garantiertes Übertragungsende. Die GUI besitzt noch keine Auftrags-/Wiederherstellungsansicht.
+
+## Punkt 5: Auftragsübersicht und Fehlerverwaltung
+
+Die Weboberfläche enthält unter `/jobs` eine neue Auftragsübersicht mit Statuszahlen und den letzten 100 Aufträgen. Angezeigt werden Profil, Quelldatei, Zeitpunkt, Anzahl der Versuche und gekürzte Fehlermeldung. Status: `running`, `done`, `retry`, `error`, `interrupted`.
+
+Für `error` und `interrupted` wird eine **manuelle Wiederholungsfreigabe** angeboten. Der Administrator muss vorher bestätigen, dass bereits erzeugte Ausgabedateien und die Fehlerursache geprüft wurden. Danach setzt die GUI den Auftrag auf `retry`; der Watcher nimmt ihn beim nächsten geeigneten Durchlauf wieder auf. Der Worker überschreibt keine vorhandenen Ausgabedateien. Originaldateien bleiben unverändert. Andere Status können nicht manuell zurückgesetzt werden.
+
+Eine frühere Fehlfunktion wurde behoben: `running`-Jobs werden jetzt ausschließlich beim **Start** des Watchers als möglicherweise unterbrochen gekennzeichnet, nicht bei jedem Polling-Durchlauf.
+
+**Noch offen:** Integrationstest auf Debian/Samba, Live-Aktualisierung der GUI, vollständige Ausgabe-/Seiten-Protokollierung und eine sicher verifizierte Wiederaufnahme von teilweise ausgegebenen Dokumenten. Das aktuelle Replay ist daher bewusst konservativ und kann bei bereits vorhandenen Zieldateien scheitern. Dieses Stadium bleibt experimentell.
