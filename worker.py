@@ -61,7 +61,7 @@ def run(source, out_dir, qr_text, options):
             if options["remove_blank"]:
                 cleaned=temp/f"clean-{index:04}.pdf"
                 # Conservative ink allowance: 0.5% of page pixels
-                retained,removed=remove_blank_pages(str(current),str(cleaned),threshold=0.5)
+                retained,removed=remove_blank_pages(str(current),str(cleaned),threshold=float(options.get("blank_threshold",0.5)))
                 current=cleaned
             if options["crop"]:
                 cropped=temp/f"crop-{index:04}.pdf"
@@ -70,7 +70,7 @@ def run(source, out_dir, qr_text, options):
                 current=cropped
             if options["ocr"]:
                 ocr=temp/f"ocr-{index:04}.pdf"
-                cmd=["ocrmypdf","-l",options.get("languages","deu+eng"),"--skip-text","--output-type",options.get("output_type","pdf"),str(current),str(ocr)]
+                cmd=["ocrmypdf","-l",options.get("languages","deu+eng"),"--skip-text","--output-type",("pdfa" if options.get("output_type")=="pdfa" else "pdf"),str(current),str(ocr)]
                 if options.get("rotate_pages"):cmd.insert(-2,"--rotate-pages")
                 if options.get("deskew"):cmd.insert(-2,"--deskew")
                 subprocess.run(cmd,check=True,timeout=900,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
