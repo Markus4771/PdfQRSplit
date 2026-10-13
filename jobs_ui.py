@@ -34,14 +34,14 @@ def request_retry(database,signature):
     with sqlite3.connect(database,timeout=10) as con:
         ensure(con)
         row=con.execute("SELECT status,file FROM jobs WHERE signature=?",(signature,)).fetchone()
-        if not row or row[0] not in ("error","interrupted"):
-            return False,"Auftrag nicht im Zustand Fehler/Unterbrochen"
+        if not row or row[0] not in ("done","error","interrupted"):
+            return False,"Nur abgeschlossene oder fehlgeschlagene Aufträge können wiederholt werden"
         if not Path(row[1]).is_file():
             return False,"Quelldatei nicht mehr vorhanden"
         # The PDF worker refuses existing filenames. This protects outputs on replay.
-        updated=con.execute("""UPDATE jobs SET status='retry',attempts=0,next_retry=NULL,
-            details='Manuell zur Wiederholung freigegeben – vorhandene Ausgaben bleiben geschützt',
+        updated=con.execute("""UPDATE jobs SET status='replay',attempts=0,next_retry=NULL,
+            details='Manuelle Wiederholung angefordert – neue Ausgabedateien erhalten einen eigenen Namenszusatz',
             updated_at=CURRENT_TIMESTAMP WHERE signature=?
-            AND status IN ('error','interrupted')""",(signature,))
+            AND status IN ('done','error','interrupted')""",(signature,))
         con.commit()
     return updated.rowcount==1, "Zur erneuten Prüfung freigegeben"
