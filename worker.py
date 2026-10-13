@@ -49,6 +49,8 @@ def run(source, out_dir, qr_text, options, output_stem=None):
     markers=separators(source,qr_text) if options["qr_split"] else []
     groups=sections(count,markers,not options["remove_separators"]) if options["qr_split"] else [list(range(count))]
     if not groups:raise ValueError("Alle Seiten wären Trennblätter; Ausgabe verweigert")
+    if options.get("datev_mode") and count>1 and not markers:
+        raise ValueError("DATEV-Sicherheitsstopp: mehrseitige PDF ohne gültige QR-Trennseite; bitte manuell prüfen")
     generated=[]
     # Stage all outputs privately. Publish only after every subprocess succeeds.
     with tempfile.TemporaryDirectory(prefix="qrscan-",dir=target) as scratch:
