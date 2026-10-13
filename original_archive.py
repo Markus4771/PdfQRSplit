@@ -9,6 +9,9 @@ import shutil
 import tempfile
 from pathlib import Path
 
+def identity(st):
+    return (st.st_dev,st.st_ino,st.st_size,st.st_mtime_ns)
+
 def file_hash(path):
     h=hashlib.sha256()
     with Path(path).open("rb") as stream:
@@ -40,7 +43,7 @@ def prepare_archive(source,archive_root,expected_sha256):
             shutil.copyfileobj(stream,out,1024*1024)
             out.flush()
             os.fsync(out.fileno())
-        if file_hash(tmp)!=expected_sha256 or source.stat()!=before or file_hash(source)!=expected_sha256:
+        if file_hash(tmp)!=expected_sha256 or identity(source.stat())!=identity(before) or file_hash(source)!=expected_sha256:
             raise ValueError("Originalarchiv: Quelle oder Kopie verändert")
         os.chmod(tmp,0o600)
         os.link(tmp,dest,follow_symlinks=False)
