@@ -234,3 +234,5 @@ In der Web-GUI unter **Aufträge & Fehler** hat jeder abgeschlossene, fehlgeschl
 Die QR-Trennung prüft bereits jeden dekodierten QR-Code auf **exakte Übereinstimmung** mit dem konfigurierten Text (aktuell `SCAN-TRENNUNG-001`). Alle anderen QR-Codes lösen keine Dokumenttrennung aus; ihre Seiten werden normal weiterverarbeitet. Falls kein passender QR-Code gefunden wird, erfolgt keine QR-Aufteilung; andere aktivierte Schritte wie OCR laufen weiter. Nur tatsächliche Fehler bei der PDF-Bearbeitung lassen den Auftrag fehlschlagen.
 
 Update: `git pull --ff-only && bash install.sh` im Repositoryverzeichnis. Änderungen an der Datenbank sind automatisch und erhalten bestehende Aufträge. Verhalten auf dem Zielsystem praktisch testen.
+
+Update 13.10.2026: Der Button **Verarbeitung wiederholen** startet mit einem Klick unmittelbar die Wiederholungsanforderung; die zusätzliche Bestätigungs-Checkbox wurde entfernt. Der laufende Watcher verarbeitet den Auftrag im nächsten Durchlauf automatisch. Ausgabedateien bleiben geschützt und bekommen eindeutige Wiederholungsnamen.
