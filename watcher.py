@@ -118,6 +118,14 @@ def once(con,profile,shares,seen):
             manual_replay=bool(row and replay_count>0)
             opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches[:5])))
             opts["datev_mode"]=bool(switches[10])
+            archive_share=switches[11]
+            archive_dir=shares.get(archive_share) if archive_share else DATA/"original-archive"
+            if archive_share and (not opts["datev_mode"] or archive_dir is None or archive_dir in (source,destination) or not os.access(archive_dir,os.W_OK|os.X_OK)):
+                logging.error("Profile %s: invalid or inaccessible original archive share",name)
+                continue
+            if archive_share and any(other[0]!=ident and archive_share in (other[2],other[3],other[15]) for other in configs(con)):
+                logging.error("Profile %s: archive share conflicts with another profile",name)
+                continue
             if opts["datev_mode"]:
                 config_text=SAMBA.read_text(errors="replace")
                 current=None;protected=False;readonly=False
@@ -173,7 +181,7 @@ def once(con,profile,shares,seen):
                     try:
                         expected=source_sha256
                         archive_path,archived_stat=prepare_archive(
-                            path,DATA/"original-archive",expected)
+                            path,archive_dir,expected,shared=bool(archive_share))
                         result["original_archive"]=archive_path
                         archive_ready=(archive_path,archived_stat,expected)
                     except Exception as archive_error:
