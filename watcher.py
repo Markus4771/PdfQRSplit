@@ -14,7 +14,7 @@ from worker import run
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 DB=DATA/"profiles.sqlite3"
-SAMBA=Path(os.getenv("QRSCAN_SAMBA_CONFIG","/etc/samba/share-manager.conf"))
+SAMBA=Path(os.getenv("QRSCAN_SAMBA_CONFIG","/etc/samba/qrscan-shares.conf"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
 INTERVAL=max(2,int(os.getenv("QRSCAN_POLL_SECONDS","5")))
 MIN_AGE=max(15,int(os.getenv("QRSCAN_STABILITY_SECONDS","30")))
