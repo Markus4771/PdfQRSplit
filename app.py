@@ -14,6 +14,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
 from jobs_ui import dashboard,request_retry
+from profile_settings import migrate,check,controls,SELECT
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -31,6 +32,7 @@ def db():
     crop INTEGER NOT NULL DEFAULT 0, ocr INTEGER NOT NULL DEFAULT 0)""")
     c.execute("""CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
     c.execute("INSERT OR IGNORE INTO settings VALUES ('qr_text','SCAN-TRENNUNG-001')")
+    migrate(c)
     c.commit()
     return c
 
@@ -123,13 +125,13 @@ class Handler(BaseHTTPRequestHandler):
                              "Bei Konflikten bleibt der Auftrag fehlgeschlagen.</p>")
         s=shares()
         with db() as c:
-            profiles=c.execute("SELECT id,name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr FROM profiles ORDER BY name").fetchall()
+            profiles=c.execute("SELECT "+SELECT+" FROM profiles ORDER BY name").fetchall()
             qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
         options="".join("<option value='"+html.escape(n,quote=True)+"'>"+html.escape(n)+"</option>" for n in s)
         rows=""
         for p in profiles:
             checked=", ".join(k for k,v in zip(FIELDS,p[4:]) if v) or "Keine"
-            rows+="<p><b>"+html.escape(p[1])+"</b>: "+html.escape(p[2])+" → "+html.escape(p[3])+"<br><span class='small'>"+html.escape(checked)+"</span></p><form method='post' action='/delete'><input type='hidden' name='id' value='"+str(p[0])+"'><button>Profil entfernen</button></form><hr>"
+            rows+=controls(p,s,"/profile-update")+"<p><b>"+html.escape(p[1])+"</b>: "+html.escape(p[2])+" → "+html.escape(p[3])+"<br><span class='small'>"+html.escape(checked)+"</span></p><form method='post' action='/delete'><input type='hidden' name='id' value='"+str(p[0])+"'><button>Profil entfernen</button></form><hr>"
         msg="<p class='notice'>Keine kompatiblen Samba-Freigaben gefunden. Zuerst Freigaben im bestehenden Samba-Manager anlegen.</p>" if not s else ""
         result=samba_call({"action":"list"})
         smb_html="<section><h2>Samba-Freigaben</h2><form method='post' action='/smb-create'><label>Freigabename</label><input name='name' required><label>SMB-Benutzer</label><input name='user' required><label>SMB-Passwort (mind. 12 Zeichen)</label><input name='password' type='password' minlength='12' required><label><input type='checkbox' name='writable' checked> Schreibzugriff</label><button>Freigabe anlegen</button></form>"
@@ -144,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss")])+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/profile-update"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -193,6 +195,13 @@ class Handler(BaseHTTPRequestHandler):
                 values=[int(k in data) for k in FIELDS]
                 try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr) VALUES (?,?,?,?,?,?,?,?)",(name,inp,out,*values))
                 except sqlite3.IntegrityError:return self.page("Profilname schon vorhanden",409)
+            elif self.path=="/profile-update":
+                try:
+                    ident=int(get("id"))
+                    values=check(data,shares())
+                    c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=? WHERE id=?",(*values,ident))
+                except (ValueError,sqlite3.IntegrityError) as exc:
+                    return self.page("Profil ungültig: "+html.escape(str(exc)),400)
             elif self.path=="/delete":
                 try:ident=int(get("id"))
                 except ValueError:return self.page("Ungültige ID",400)
