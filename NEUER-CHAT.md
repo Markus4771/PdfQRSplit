@@ -138,3 +138,5 @@ Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen da
 ## Samba include position fixed
 
 `install.sh` repariert die früh in `[global]` eingesetzte QR Scan Manager `include = /etc/samba/qrscan-shares.conf` durch Verschieben an das Ende der `smb.conf`; Zeitstempelbackup, temporäre `testparm`-Validierung und atomarer Austausch; keine Änderungen an anderen Freigaben. Benutzer `Eingabe-Test`/`Ausgang-Test` bleiben unverändert. Laufzeitkontrolle durch `testparm -s` auf dem Debian-Server steht aus.
+
+**Korrektur 14.10.2026:** Der QRSCAN-Samba-`include` muss **als letzte Direktive in `[global]` unmittelbar vor dem ersten Freigabeabschnitt** stehen. Eine Position am Dateiende würde Samba die Direktive fälschlich der letzten Freigabe `[print$]` zuordnen. `install.sh` korrigiert dies mit vorherigem Zeitstempel-Backup und `testparm`-Prüfung. Nach dem Update `testparm -s` erneut ausführen: `include` muss unter `[global]`, nicht unter `[print$]` erscheinen.
