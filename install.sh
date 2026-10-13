@@ -32,6 +32,7 @@ install -m 0644 test_safe_publish.py /opt/qrscan/test_safe_publish.py
 install -m 0755 selftest.py /opt/qrscan/selftest.py
 install -d -o root -g root -m 0755 /usr/local/lib/qrscan
 install -m 0755 -o root -g root samba_helper.py /usr/local/lib/qrscan/samba_helper.py
+install -m 0755 -o root -g root samba_rpc.py /usr/local/lib/qrscan/samba_rpc.py
 install -m 0755 sync_permissions.py /opt/qrscan/sync_permissions.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
@@ -88,17 +89,15 @@ if include not in data:
     p.write_text(data)
 PY
 testparm -s >/dev/null
-cat >/etc/sudoers.d/qrscan-samba <<'EOF'
-qrscan ALL=(root) NOPASSWD: /usr/local/lib/qrscan/samba_helper.py
-EOF
-chmod 0440 /etc/sudoers.d/qrscan-samba
-visudo -cf /etc/sudoers.d/qrscan-samba >/dev/null
+# Legacy sudo rule is no longer necessary; privileges live in a separate daemon.
+rm -f /etc/sudoers.d/qrscan-samba
 echo "[7/7] systemd-Dienst installieren"
 cat >/etc/systemd/system/qrscan-web.service <<'EOF'
 [Unit]
 Description=QR Scan Manager configuration GUI
+Requires=qrscan-samba.service
 Wants=network-online.target
-After=network-online.target
+After=network-online.target qrscan-samba.service
 [Service]
 Type=simple
 User=qrscan
@@ -110,7 +109,7 @@ Environment=QRSCAN_PORT=8086
 ExecStart=/opt/qrscan/venv/bin/python /opt/qrscan/app.py
 Restart=on-failure
 RestartSec=5
-NoNewPrivileges=no
+NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
@@ -142,11 +141,35 @@ ReadOnlyPaths=/etc/samba
 [Install]
 WantedBy=multi-user.target
 EOF
+cat >/etc/systemd/system/qrscan-samba.service <<'EOF'
+[Unit]
+Description=QR Scan Manager privileged Samba controller
+After=smbd.service
+Requires=smbd.service
+[Service]
+Type=simple
+User=root
+Group=root
+RuntimeDirectory=qrscan
+RuntimeDirectoryMode=0755
+ExecStart=/usr/bin/python3 /usr/local/lib/qrscan/samba_rpc.py
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target
+EOF
 systemctl daemon-reload
+systemctl enable qrscan-samba.service
+systemctl restart qrscan-samba.service
+
 systemctl enable qrscan-watcher.service
 systemctl restart qrscan-watcher.service
 systemctl enable qrscan-web.service
 systemctl restart qrscan-web.service
+systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
 /opt/qrscan/venv/bin/python -m unittest -v test_safe_publish
