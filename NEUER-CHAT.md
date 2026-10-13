@@ -88,3 +88,7 @@ Installer legt jetzt `/srv/samba-shares` an, prüft Web- und Watcher-Dienst und 
 ## Separater Samba-Verwaltungsdienst
 
 `samba_rpc.py` als Root-Dienst `qrscan-samba.service`, Verbindung über Unix-Socket nur für `qrscan` per SO_PEERCRED. Webdienst wieder `NoNewPrivileges=yes`, alte sudoers-Regel wird im Installer entfernt. Kein schreibgeschütztes Dateisystem für Root-Helfer. Installation/SMB-Erstellung noch praktisch verifizieren.
+
+## Samba Mehrfachnutzung – Fehlerkorrektur
+
+Samba-Passwortprüfung enthielt falsche (wörtliche) Zeilenumbrüche in der Credential-Datei. `samba_helper.py` korrigiert; `app.py` erlaubt, bei einer vorhandenen Freigabe auf einen bereits vorhandenen SMB-Benutzer umzustellen und dessen Passwort zu verifizieren. Achtung: vorhandenen Benutzer nicht löschen; noch auf Debian zu testen.
