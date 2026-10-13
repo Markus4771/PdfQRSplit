@@ -60,3 +60,7 @@ Neuer `watcher.py` und `qrscan-watcher.service` im Installer. Liest die Profil-S
 ## Punkt 3 – 13.10.2026
 
 `sync_permissions.py` ist als root ausführbarer ACL-Helfer für bereits verwaltete Profile hinzugefügt; Installer kopiert ihn, ändert Freigabe-ACLs nicht automatisch. systemd-Watcher erlaubt nun Schreiben unter /srv/samba-shares, sofern Unix-Rechte vorhanden sind. `watcher.py` speichert Wiederholungsversuche, wiederholt vorübergehende IO-Fehler maximal 3-mal und markiert nach Neustarts unterbrochene Jobs zur manuellen Prüfung. Noch nicht auf Debian 13 getestet, noch keine integrierte Samba-Freigabenerstellung.
+
+## Punkt 5: Auftragsübersicht (13.10.2026)
+
+`jobs_ui.py` ergänzt die bestehende Web-GUI um `/jobs`: Status-Übersicht, letzte 100 Aufträge und Fehlermeldungen, manuelles Wiederholen von `error`/`interrupted` mit Bestätigungscheckbox. `install.sh` kopiert das Modul. `watcher.py` markiert liegengebliebene `running`-Aufträge nur noch beim Dienststart als unterbrochen. Noch nicht praktisch getestet.
