@@ -22,12 +22,13 @@ install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan
 install -d -o root -g root -m 0755 /opt/qrscan
 install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -m 0755 app.py /opt/qrscan/app.py
+install -m 0755 worker.py /opt/qrscan/worker.py
 echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
 /opt/qrscan/venv/bin/python -m pip install --disable-pip-version-check --upgrade pip
 # Installiert die Python-Abhängigkeiten für QR- und PDF-Analyse.
 /opt/qrscan/venv/bin/pip install --disable-pip-version-check \
-  pypdf pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
+  pypdf pypdf4 zxing pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
   "scan-pdf-cleaner-cli==1.0.0"
 echo "[4/7] QR-Trennwerkzeug bereitstellen"
 # Externe QR-Engine getrennt halten, sodass Updates der eigenen App sie nicht überschreiben.
@@ -88,4 +89,4 @@ systemctl enable qrscan-web.service
 systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 echo "Installiert: Web-GUI unter http://SERVER-IP:8086 (nur internes LAN)."
-echo "WICHTIG: QR-PDF-Worker, automatische Verarbeitung und vollständige Samba-GUI fehlen noch."
+echo "WICHTIG: QR-Einzeldatei-PDF-Worker ist vorhanden; automatische Überwachung und vollständige Samba-GUI fehlen noch."
