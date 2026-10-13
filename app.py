@@ -14,7 +14,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs
-from jobs_ui import dashboard,request_retry
+from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
@@ -116,19 +116,28 @@ class Handler(BaseHTTPRequestHandler):
         if self.password_needed():return self.password_form()
         if self.path=="/jobs":
             with db(): pass
-            totals,rows=dashboard(DB)
+            totals,rows,retention=dashboard(DB)
             counts="".join("<b>"+html.escape(k)+": "+str(v)+"</b> &nbsp; " for k,v in sorted(totals.items()))
             lines=[]
             for signature,filename,status,details,attempts,updated,profile in rows:
                 entry="<article><p><b>"+html.escape(status)+"</b> · "+html.escape(profile)+" · "+html.escape(updated or "")+"</p>"
                 entry+="<p>"+html.escape(filename)+"</p><p class='small'>Versuche: "+str(attempts or 0)+" · "+html.escape(str(details or "")[:1000])+"</p>"
-                if status in ("done","error","interrupted"):
+                source_missing,missing_outputs,total_outputs=file_flags(status,filename,details)
+                if source_missing:
+                    entry+="<p class='notice'>Quelle fehlt – Wiederholung nicht möglich</p>"
+                if missing_outputs is not None:
+                    if missing_outputs:
+                        entry+="<p class='notice'>Ausgabe fehlt: "+str(missing_outputs)+" von "+str(total_outputs)+" Datei(en)</p>"
+                    else:
+                        entry+="<p class='small'>Ausgabedateien vorhanden: "+str(total_outputs)+"</p>"
+                if not source_missing and status in ("done","error","interrupted"):
                     entry+=("<form method='post' action='/retry'>"
                            "<input type='hidden' name='signature' value='"+signature+"'>"
                            "<button>Verarbeitung wiederholen</button></form>")
                 lines.append(entry+"</article><hr>")
             return self.page("<header><h1>Auftragsübersicht</h1><a href='/'>Zur Konfiguration</a></header>"
                              "<section><h2>Status</h2>"+(counts or "Keine Aufträge")+"</section>"
+                             "<section><h2>Datenbank-Aufbewahrung</h2><form method='post' action='/retention'><label>Abgeschlossene und fehlgeschlagene Aufträge nach Tagen entfernen (7–3650)</label><input type='number' min='7' max='3650' name='days' value='"+str(retention)+"' required><button>Aufbewahrung speichern</button></form><p class='small'>Standard: 90 Tage. Nur Auftragseinträge werden bereinigt; PDFs bleiben unverändert. Die Bereinigung erfolgt automatisch durch den Watcher.</p></section>"
                              "<section><h2>Letzte 100 Aufträge</h2>"+("".join(lines) or "Noch keine Aufträge")+"</section>"
                              "<p class='small'>Bei Wiederholung abgeschlossener Aufträge werden neue Ausgabedateien mit eigenem Namenszusatz erstellt. "
                              "Bei Konflikten bleibt der Auftrag fehlgeschlagen.</p>")
@@ -155,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss")])+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/profile-update"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/profile-update","/retention"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -172,6 +181,13 @@ class Handler(BaseHTTPRequestHandler):
             tmp=AUTH.with_suffix(".tmp");tmp.write_text(json.dumps(new));os.chmod(tmp,0o600);os.replace(tmp,AUTH)
             self.page("<h1>Passwort gespeichert</h1><p>Bitte Browseranmeldung neu durchführen.</p>");return
         if self.password_needed():return self.password_form()
+        if self.path=="/retention":
+            try:
+                save_retention(DB,int(get("days")))
+            except ValueError:
+                return self.page("Ungültige Aufbewahrungsdauer (7–3650 Tage)",400)
+            self.send_response(303);self.send_header("Location","/jobs");self.end_headers()
+            return
         if self.path=="/retry":
             ok,message=request_retry(DB,get("signature"))
             if not ok:
