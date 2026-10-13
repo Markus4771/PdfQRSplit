@@ -119,7 +119,7 @@ def once(con,profile,shares,seen):
             opts["datev_mode"]=bool(switches[10])
             if opts["datev_mode"]:
                 config_text=SAMBA.read_text(errors="replace")
-                current=None;protected=False
+                current=None;protected=False;readonly=False
                 for line in config_text.splitlines():
                     item=line.strip()
                     if item.startswith("[") and item.endswith("]"):
@@ -128,7 +128,9 @@ def once(con,profile,shares,seen):
                         k,v=(part.strip() for part in item.split("=",1))
                         if k=="comment" and v=="QRSCAN-DATEV-READONLY":
                             protected=True
-                if not protected:
+                        if k=="read only" and v.lower()=="yes":
+                            readonly=True
+                if not (protected and readonly):
                     logging.error("DATEV profile %s: destination Samba share is not DATEV protected; refusing handoff",name)
                     continue
             if opts["datev_mode"] and any(other[0]!=ident and other[3]==out_share for other in configs(con)):
