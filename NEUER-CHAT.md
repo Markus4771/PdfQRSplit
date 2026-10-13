@@ -122,3 +122,7 @@ Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen da
 ## Fluent Bit Vorstufe
 
 `install_fluent_bit.sh` über `install.sh` integriert: lokaler Listener `127.0.0.1:24224`, separater systemd-Dienst, Null-Ausgang. Noch keine DATEV-Protokolle, TLS-Client-Zertifikate oder Windows-Quellen konfiguriert. Nicht produktiv freigeben; Tests auf Zielserver offen.
+
+## DATEV: erneut gescannte Rechnungen
+
+`datev_visual.py` neu mit visuellen 256-bit Seiten-Fingerabdrücken. `datev_handoff.py` speichert diese pro reserviertem Beleg und blockiert ähnliche PDF-Belege gleicher Seitenzahl vor Bereitstellung; Verdachtsfälle landen in `datev_suspects` und Auftrag `error`, Eingangs-PDF bleibt vorhanden. Exakte Byte-Dubletten via SHA-256 unverändert. Installer installiert Modul und Tests. Keine OCR-Rechnungsnummernprüfung, keine visuelle Backfill alter DATEV-Registereinträge, kein automatischer manueller Freigabeworkflow; Fehlalarme und nicht erkannte Dubletten möglich. Nicht produktiv verwenden ohne Tests mit echten Rechnungen.
