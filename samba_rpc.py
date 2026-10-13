@@ -38,7 +38,7 @@ def serve():
                         if total>MAX:raise ValueError("Request too large")
                         parts.append(piece)
                     request=json.loads(b"".join(parts))
-                    if not isinstance(request,dict) or request.get("action") not in ("list","create","update","password","delete"):
+                    if not isinstance(request,dict) or request.get("action") not in ("list","create","update","password","delete","protect-datev"):
                         raise ValueError("Invalid action")
                     result=subprocess.run([HELPER],input=json.dumps(request),text=True,capture_output=True,timeout=45)
                     reply=json.loads(result.stdout)
