@@ -19,6 +19,7 @@ getent group qrscan-share-read >/dev/null || groupadd --system qrscan-share-read
 id -u qrscan >/dev/null 2>&1 || useradd --system --home-dir /var/lib/qrscan --shell /usr/sbin/nologin qrscan
 usermod -aG qrscan-share-read qrscan
 install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan
+install -d -o qrscan -g qrscan -m 0700 /var/lib/qrscan/datev-review
 install -d -o root -g root -m 0755 /opt/qrscan
 install -d -o qrscan -g qrscan -m 0750 /srv/qrscan
 install -d -o root -g root -m 0755 /srv/samba-shares
