@@ -76,3 +76,19 @@ Die Erstinstallation zeigt ein zufällig erzeugtes Administratorpasswort **einma
 sudo systemctl status qrscan-web --no-pager
 sudo journalctl -u qrscan-web -n 50 --no-pager
 ```
+
+## PDF-Einzeldatei-Worker (neu)
+
+`worker.py` verarbeitet **eine einzelne PDF-Datei** in dieser Reihenfolge: QR-Code-Erkennung (exakte Übereinstimmung), Trennung, optionale QR-Blattentfernung, optional Scan PDF Cleaner, optional OCRmyPDF. Quelldatei bleibt immer erhalten. Ausgabedateien werden nicht überschrieben. Die automatische Samba-Ordnerüberwachung und Profilanbindung stehen noch aus.
+
+Nach Installation im Testsystem:
+```bash
+sudo -u qrscan /opt/qrscan/venv/bin/python /opt/qrscan/worker.py \
+  /pfad/scan.pdf /pfad/ausgabe --qr-text 'SCAN-TRENNUNG-001' \
+  --remove-blank --ocr
+```
+Nur Pfade verwenden, auf die `qrscan` zugreifen darf. Eine manuelle Testausführung mit passenden Dateirechten ist erforderlich. Für ein behaltenes Trennblatt wird die QR-Seite **als erste Seite des neuen Dokuments** verwendet. Mit `--remove-separators` entfällt sie. Ohne QR-Marker wird eine einzige Ausgabe erzeugt.
+
+**Wichtige Einschränkung:** Die aktuelle Upstream-Funktion `crop_pdf_margins` von Scan PDF Cleaner kürzt einen *festen* Rand (hier 12 pt) und erkennt die tatsächlichen Seitenränder nicht automatisch. `--crop` deshalb erst nach Sichtprüfung verwenden. Die Leerseitenerkennung verwendet derzeit den festen Upstream-Schwellwert 0,5% und behält aus Sicherheitsgründen mindestens eine Seite. Das angekündigte regelbare GUI-Schwellwertfeld und der Vorschaumodus fehlen noch. Keine Eignung für produktive Dokumente ohne Tests.
+
+QR-Decoder ist `pyzbar` mit gerenderten Seiten; das bisher geklonte upstream-PdfQRSplit liegt als Referenz daneben. Grund: dessen QR-Erkennung setzt eingebettete PDF-Bilder voraus und würde nicht alle gerenderten PDF-Formen zuverlässig erfassen.
