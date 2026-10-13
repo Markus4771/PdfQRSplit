@@ -92,3 +92,7 @@ Installer legt jetzt `/srv/samba-shares` an, prüft Web- und Watcher-Dienst und 
 ## Samba Mehrfachnutzung – Fehlerkorrektur
 
 Samba-Passwortprüfung enthielt falsche (wörtliche) Zeilenumbrüche in der Credential-Datei. `samba_helper.py` korrigiert; `app.py` erlaubt, bei einer vorhandenen Freigabe auf einen bereits vorhandenen SMB-Benutzer umzustellen und dessen Passwort zu verifizieren. Achtung: vorhandenen Benutzer nicht löschen; noch auf Debian zu testen.
+
+## QR-Praxistest vom 13.10.2026
+
+Das laufende Debian-System meldet alle 20 Test-PDFs als erfolgreich bearbeitet, aber jeweils nur eine Ausgabedatei. Die Profilkonfiguration ist per SQLite bestätigt: `Test|Eingabe-Test|Ausgang-Test|1` und QR-Text `SCAN-TRENNUNG-001`. Die Ursache ist offen. `diagnose_qr.py` neu: listet pro PDF-Seite die dekodierten QR-Codes und Treffer des Solltextes, ohne zu schreiben. Installer kopiert das Programm.
