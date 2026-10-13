@@ -266,7 +266,9 @@ class Handler(BaseHTTPRequestHandler):
                 if archive and c.execute("SELECT 1 FROM profiles WHERE input_share=? OR output_share=? OR archive_share=? LIMIT 1",(archive,archive,archive)).fetchone():
                     return self.page("Original-Archiv wird bereits durch ein anderes Profil genutzt",409)
                 if datev:
-                    try:ensure_datev_samba_protection(out)
+                    try:
+                        ensure_datev_samba_protection(out)
+                        if archive:ensure_datev_samba_protection(archive)
                     except ValueError as exc:return self.page("DATEV-Schutz: "+html.escape(str(exc)),409)
                 try:c.execute("INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,datev_mode,archive_share) VALUES (?,?,?,?,?,?,?,?,?,?)",(name,inp,out,*values,datev,archive))
                 except sqlite3.IntegrityError:return self.page("Profilname schon vorhanden",409)
@@ -283,7 +285,9 @@ class Handler(BaseHTTPRequestHandler):
                         raise ValueError("Original-Archiv-Freigabe wird bereits verwendet")
                     if c.execute("SELECT 1 FROM profiles WHERE id<>? AND archive_share IN (?,?) LIMIT 1",(ident,values[1],values[2])).fetchone():
                         raise ValueError("Eingang/Ausgang wird bereits als Archiv genutzt")
-                    if values[14]:ensure_datev_samba_protection(values[2])
+                    if values[14]:
+                        ensure_datev_samba_protection(values[2])
+                        if archive:ensure_datev_samba_protection(archive)
                     c.execute("UPDATE profiles SET name=?,input_share=?,output_share=?,qr_split=?,remove_separators=?,remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=?,archive_share=? WHERE id=?",(*values,ident))
                 except (ValueError,sqlite3.IntegrityError) as exc:
                     return self.page("Profil ungültig: "+html.escape(str(exc)),400)
