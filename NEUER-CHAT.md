@@ -134,3 +134,7 @@ Neues Modul `datev_handoff.py`: pro fertiger Einzel-PDF exakten SHA-256 gegen da
 ## DATEV-Samba-Schutz
 
 `samba_helper.py` bietet `datev_protected` bei `create` und `protect-datev` für bestehende Freigaben. Samba-Konfiguration setzt `read only=yes`, `comment=QRSCAN-DATEV-READONLY`, `veto files=/qrscan-*/`, `hide unreadable=yes`. Spätere `update`-Aufrufe lassen DATEV geschützt schreibgeschützt. `samba_rpc.py` lässt neue Aktion zu. `app.py` zeigt Markierung, Schutzbutton und verlangt markierte DATEV-Samba-Freigabe bei Profilanlage/-änderung. `watcher.py` prüft Markierung plus `read only=yes` vor DATEV-Verarbeitung. Unveränderte gewöhnliche Freigaben. Erfordert Tests mit `testparm` und SMB-Read/Write/Löschprobe; Belegtransfer-Kompatibilität von SMB Nur-Lese noch unbekannt.
+
+## Samba include position fixed
+
+`install.sh` repariert die früh in `[global]` eingesetzte QR Scan Manager `include = /etc/samba/qrscan-shares.conf` durch Verschieben an das Ende der `smb.conf`; Zeitstempelbackup, temporäre `testparm`-Validierung und atomarer Austausch; keine Änderungen an anderen Freigaben. Benutzer `Eingabe-Test`/`Ausgang-Test` bleiben unverändert. Laufzeitkontrolle durch `testparm -s` auf dem Debian-Server steht aus.
