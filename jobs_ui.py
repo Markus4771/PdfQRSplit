@@ -1,5 +1,8 @@
 """Shared job listing and explicit retry controls for QR Scan Manager."""
 import sqlite3
+import ast
+import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 def ensure(con):
@@ -20,15 +23,57 @@ def ensure(con):
         con.execute("ALTER TABLE jobs ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0")
     con.commit()
 
+def outputs_from_details(details):
+    """Parse only prior successful worker output manifests, never execute text."""
+    try:
+        value=json.loads(details)
+    except (ValueError,TypeError):
+        try: value=ast.literal_eval(details or "")
+        except (ValueError,SyntaxError,TypeError,MemoryError,RecursionError): return None
+    if not isinstance(value,dict) or not isinstance(value.get("outputs"),list):
+        return None
+    outputs=value["outputs"]
+    if len(outputs)>1000 or any(not isinstance(p,str) or len(p)>4096 for p in outputs):
+        return None
+    return outputs
+
+def file_flags(status, source, details):
+    source_missing=not Path(source).is_file()
+    outputs=outputs_from_details(details) if status=="done" else None
+    missing_outputs=sum(not Path(p).is_file() for p in outputs) if outputs is not None else None
+    return source_missing,missing_outputs,len(outputs) if outputs is not None else None
+
+def retention_days(con):
+    con.execute("CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+    row=con.execute("SELECT value FROM settings WHERE key='job_retention_days'").fetchone()
+    try: days=int(row[0]) if row else 90
+    except (TypeError,ValueError):days=90
+    return max(7,min(3650,days))
+
+def save_retention(database, days):
+    if not isinstance(days,int) or not 7<=days<=3650:
+        raise ValueError("Aufbewahrung: 7 bis 3650 Tage")
+    with sqlite3.connect(database,timeout=10) as con:
+        con.execute("INSERT INTO settings(key,value) VALUES('job_retention_days',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(str(days),))
+        con.commit()
+
+def cleanup_jobs(con):
+    """Clean terminal DB history only. Never touch PDFs or active jobs."""
+    cutoff=(datetime.now(timezone.utc)-timedelta(days=retention_days(con))).strftime("%Y-%m-%d %H:%M:%S")
+    cursor=con.execute("DELETE FROM jobs WHERE status IN ('done','error','interrupted') AND updated_at < ?",(cutoff,))
+    con.commit()
+    return cursor.rowcount
+
 def dashboard(database):
     with sqlite3.connect(database, timeout=10) as con:
         ensure(con)
+        retention=retention_days(con)
         totals=dict(con.execute("SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
         rows=con.execute("""SELECT j.signature,j.file,j.status,j.details,j.attempts,
             j.updated_at,COALESCE(p.name,'Profil entfernt')
             FROM jobs j LEFT JOIN profiles p ON p.id=j.profile_id
             ORDER BY j.updated_at DESC,j.rowid DESC LIMIT 100""").fetchall()
-    return totals,rows
+    return totals,rows,retention
 
 def request_retry(database,signature):
     if len(signature)!=64 or any(c not in "0123456789abcdef" for c in signature):
