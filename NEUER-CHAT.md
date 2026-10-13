@@ -80,3 +80,7 @@ Neue Datei `profile_settings.py` mit Migration älterer SQLite-Profile, Formular
 ## Punkt 3: Verarbeitungsabsicherung
 
 Neues Modul `safe_publish.py` und Test `test_safe_publish.py`. Der Worker veröffentlicht vollständig vorbereitete PDFs ohne Überschreiben. Der Watcher hat nun eine Instanzsperre (`flock`), PDF-Snapshot mit Datenvergleich und eine erweiterte Auftragskennung, die den Quellpfad berücksichtigt. Installer und Selbsttest aktualisiert. Offene Risiken: Stromausfall während Mehrfachpublikation, Scanner-Copy-Race und noch fehlender praktischer Debian-/SMB-Test.
+
+## Punkt 4 – Debian 13 (Testvorbereitung)
+
+Installer legt jetzt `/srv/samba-shares` an, prüft Web- und Watcher-Dienst und führt die Safe-Publish-Tests aus. `.github/workflows/debian13.yml` führt einen Debian-13-Containercheck mit Syntax- und Publishing-Tests aus. Noch nicht bestätigt, dass CI erfolgreich abgeschlossen wurde, und kein E2E-Samba-/OCR-Test durchgeführt. Entwicklungscontainer Debian 13 vorhanden, GitHub-Download dort durch DNS blockiert.
