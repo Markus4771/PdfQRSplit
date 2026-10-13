@@ -36,3 +36,7 @@ Die Codeprüfung zeigte spezielle Stirling-Pfade, Stirling-ACLs und eine eigene 
 - `install.sh`: Debian-Installer für die Web-GUI, eigener Benutzer, systemd, zufälliges Startpasswort und erzwungener Erstwechsel.
 - Lesen bestehender managerverwalteter SMB-Shares aus `/etc/samba/share-manager.conf`; aus Sicherheitsgründen keine Kopie des privilegierten Samba-Helpers.
 - **Noch offen:** Echte QR-/Leerseiten-/OCR-Verarbeitung, Tests auf Debian, Bearbeitung vorhandener Profile, Samba-UI-Integration.
+
+## Installer-Update
+
+`install.sh` installiert nun automatisch die Paket- und Python-Abhängigkeiten für alle vereinbarten Komponenten (inkl. Java/ZXing für PdfQRSplit, Scan PDF Cleaner, OCRmyPDF/Tesseract, Samba und Web-GUI). Es bleibt ein **experimenteller** Installer: keine PDF-Worker-Integration, kein vollständiger Samba-Manager, noch kein Debian-13-Livetest. Neue Installationen erstellen zufällige GUI-Zugangsdaten, Updates behalten vorhandene Passwörter.
