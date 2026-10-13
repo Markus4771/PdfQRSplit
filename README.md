@@ -57,3 +57,22 @@ sudo systemctl status qrscan-web --no-pager
 ```
 
 Achtung: Die bisherige Stirling-Freigabenverwaltung verwendet eine eigenständige Konfiguration; die neue GUI ist derzeit nur eine lesende Anbindung. Vor Integration in bestehende Produktivsysteme Samba-Konfiguration sichern und Rechte prüfen.
+
+## Vollständiger Abhängigkeits-Installer
+
+`install.sh` installiert auf Debian die **benötigten Laufzeitpakete und Python-Bibliotheken** in einer eigenen virtuellen Umgebung: Samba, PDF-Werkzeuge, PdfQRSplit samt Java/ZXing/PyPDF4, Scan PDF Cleaner, OCRmyPDF/Tesseract (Deutsch und Englisch), OpenCV und die Web-GUI. Voraussetzung: `sudo`, `git` und `curl` dürfen schon installiert sein; Git wird nur für den Repository-Checkout genutzt. Debian 13 ist Zielplattform.
+
+```bash
+git clone https://github.com/Markus4771/PdfQRSplit.git
+cd PdfQRSplit
+sudo bash install.sh
+```
+
+**Wichtig:** Alle technischen Abhängigkeiten zu installieren bedeutet noch nicht, dass sie in einer fertigen Verarbeitungspipeline verbunden sind. Der aktuelle Installer aktiviert nur `qrscan-web.service`, keinen produktiven PDF-Worker und keine automatische Samba-Freigabenverwaltung. Er ist noch nicht auf einem frischen Debian 13 durchgetestet. Erst auf einer Test-VM ausführen und vor produktiver Nutzung eine Sicherung anlegen.
+
+Die Erstinstallation zeigt ein zufällig erzeugtes Administratorpasswort **einmalig** im Terminal. Bei einer erneuten Installation wird das bestehende Passwort nicht überschrieben.
+
+```bash
+sudo systemctl status qrscan-web --no-pager
+sudo journalctl -u qrscan-web -n 50 --no-pager
+```
