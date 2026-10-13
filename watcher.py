@@ -15,6 +15,7 @@ from pathlib import Path
 
 from worker import run
 from retry_policy import MAX_ATTEMPTS, should_retry, next_retry
+from output_naming import output_stem
 from profile_settings import migrate,SELECT
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
@@ -133,7 +134,7 @@ def once(con,profile,shares,seen):
                         return h.digest()
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
-                    result=run(snapshot,destination,qr,opts,output_stem=(path.stem+"_wiederholung_"+digest[:12]+"_"+str(replay_count) if manual_replay else path.stem))
+                    result=run(snapshot,destination,qr,opts,output_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0)))
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(result),digest))
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
