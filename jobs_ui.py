@@ -16,6 +16,8 @@ def ensure(con):
         con.execute("ALTER TABLE jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
     if "next_retry" not in columns:
         con.execute("ALTER TABLE jobs ADD COLUMN next_retry TEXT")
+    if "replay_count" not in columns:
+        con.execute("ALTER TABLE jobs ADD COLUMN replay_count INTEGER NOT NULL DEFAULT 0")
     con.commit()
 
 def dashboard(database):
@@ -39,7 +41,7 @@ def request_retry(database,signature):
         if not Path(row[1]).is_file():
             return False,"Quelldatei nicht mehr vorhanden"
         # The PDF worker refuses existing filenames. This protects outputs on replay.
-        updated=con.execute("""UPDATE jobs SET status='replay',attempts=0,next_retry=NULL,
+        updated=con.execute("""UPDATE jobs SET status='replay',attempts=0,next_retry=NULL,replay_count=replay_count+1,
             details='Manuelle Wiederholung angefordert – neue Ausgabedateien erhalten einen eigenen Namenszusatz',
             updated_at=CURRENT_TIMESTAMP WHERE signature=?
             AND status IN ('done','error','interrupted')""",(signature,))
