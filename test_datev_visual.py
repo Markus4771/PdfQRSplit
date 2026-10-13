@@ -26,6 +26,10 @@ class VisualDuplicateTests(unittest.TestCase):
             self.assertEqual(len(publish_datev([(a,out/"a.pdf")],out,db,a)["outputs"]),1)
             with self.assertRaisesRegex(ValueError,"DATEV-Dublettenverdacht"):
                 publish_datev([(b,out/"b.pdf")],out,db,b)
+            review=list((root/"datev-review").glob("verdacht_*.pdf"))
+            self.assertEqual(len(review),1)
+            self.assertEqual(review[0].read_bytes(),b.read_bytes())
+            self.assertEqual(len(list(out.glob("beleg_*.pdf"))),1)
     def test_different_page_count_is_not_match(self):
         self.assertFalse(near(["0"*64],["0"*64,"0"*64]))
 if __name__=="__main__":unittest.main()
