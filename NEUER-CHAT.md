@@ -100,3 +100,5 @@ Das laufende Debian-System meldet alle 20 Test-PDFs als erfolgreich bearbeitet, 
 ## Verarbeitung wiederholen und QR-Regeln
 
 Neu: Wiederholen-Button für abgeschlossene/fehlerhafte/unterbrochene Aufträge unter `/jobs`. Zusätzliche Spalte `jobs.replay_count`, eindeutiger Ausgabestamm `_wiederholung_<hash>_<nummer>` verhindert Überschreiben. Erfordert noch Praxistest unter Debian 13. QR-Trennlogik in `worker.py` wurde geprüft und war bereits korrekt: Es trennen ausschließlich QR-Inhalte, die exakt dem `qr_text` entsprechen; andere QR-Codes werden ignoriert und die restliche PDF-Verarbeitung läuft weiter.
+
+Update 13.10.2026: Der Button **Verarbeitung wiederholen** startet mit einem Klick unmittelbar die Wiederholungsanforderung; die zusätzliche Bestätigungs-Checkbox wurde entfernt. Der laufende Watcher verarbeitet den Auftrag im nächsten Durchlauf automatisch. Ausgabedateien bleiben geschützt und bekommen eindeutige Wiederholungsnamen.
