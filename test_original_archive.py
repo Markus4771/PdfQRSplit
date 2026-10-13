@@ -27,6 +27,17 @@ class ArchiveTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 remove_archived_source(src,archived,digest,before)
             self.assertTrue(src.exists())
+    def test_shared_archive_keeps_directory_permissions(self):
+        with tempfile.TemporaryDirectory() as work:
+            base=Path(work);src=base/"invoice.pdf";src.write_bytes(b"invoice")
+            share=base/"archive-share";share.mkdir()
+            share.chmod(0o2770)
+            archived,before=prepare_archive(src,share,file_hash(src),shared=True)
+            self.assertEqual(share.stat().st_mode & 0o7777,0o2770)
+            self.assertTrue(Path(archived).exists())
+            remove_archived_source(src,archived,file_hash(archived),before)
+            self.assertFalse(src.exists())
+
     def test_wrong_digest_cannot_archive(self):
         with tempfile.TemporaryDirectory() as work:
             base=Path(work);src=base/"invoice.pdf";src.write_bytes(b"source")
