@@ -96,3 +96,7 @@ Samba-Passwortprüfung enthielt falsche (wörtliche) Zeilenumbrüche in der Cred
 ## QR-Praxistest vom 13.10.2026
 
 Das laufende Debian-System meldet alle 20 Test-PDFs als erfolgreich bearbeitet, aber jeweils nur eine Ausgabedatei. Die Profilkonfiguration ist per SQLite bestätigt: `Test|Eingabe-Test|Ausgang-Test|1` und QR-Text `SCAN-TRENNUNG-001`. Die Ursache ist offen. `diagnose_qr.py` neu: listet pro PDF-Seite die dekodierten QR-Codes und Treffer des Solltextes, ohne zu schreiben. Installer kopiert das Programm.
+
+## Verarbeitung wiederholen und QR-Regeln
+
+Neu: Wiederholen-Button für abgeschlossene/fehlerhafte/unterbrochene Aufträge unter `/jobs`. Zusätzliche Spalte `jobs.replay_count`, eindeutiger Ausgabestamm `_wiederholung_<hash>_<nummer>` verhindert Überschreiben. Erfordert noch Praxistest unter Debian 13. QR-Trennlogik in `worker.py` wurde geprüft und war bereits korrekt: Es trennen ausschließlich QR-Inhalte, die exakt dem `qr_text` entsprechen; andere QR-Codes werden ignoriert und die restliche PDF-Verarbeitung läuft weiter.
