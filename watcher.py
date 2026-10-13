@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Monitor Samba input shares and execute profile-based PDF processing."""
 import hashlib
+import datetime
 import logging
 import os
 import signal
@@ -48,6 +49,12 @@ def connect():
        signature TEXT PRIMARY KEY, profile_id INTEGER, file TEXT NOT NULL,
        status TEXT NOT NULL, details TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
     )""")
+    columns={item[1] for item in con.execute("PRAGMA table_info(jobs)")}
+    if "attempts" not in columns:
+        con.execute("ALTER TABLE jobs ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0")
+    if "next_retry" not in columns:
+        con.execute("ALTER TABLE jobs ADD COLUMN next_retry TEXT")
+    con.execute("UPDATE jobs SET status='interrupted',details='Abbruch: Ausgabe manuell prüfen' WHERE status='running'")
     con.commit()
     return con
 
@@ -83,11 +90,18 @@ def once(con,profile,shares,seen):
             with fitz.open(path) as doc:
                 if doc.page_count<1:continue
             digest=fingerprint(path,stat,ident)
-            row=con.execute("SELECT status FROM jobs WHERE signature=?",(digest,)).fetchone()
-            if row:continue
+            row=con.execute("SELECT status,attempts,next_retry FROM jobs WHERE signature=?",(digest,)).fetchone()
+            if row:
+                status,attempts,next_retry=row
+                now=datetime.datetime.now(datetime.timezone.utc).isoformat()
+                if status!="retry" or attempts>=3 or (next_retry and next_retry>now):
+                    continue
             opts=dict(zip(("qr_split","remove_separators","remove_blank","crop","ocr"),map(bool,switches)))
             qr=con.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
-            con.execute("INSERT INTO jobs(signature,profile_id,file,status) VALUES (?,?,?,'running')",(digest,ident,str(path)))
+            if row:
+                con.execute("UPDATE jobs SET status='running',attempts=attempts+1,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(digest,))
+            else:
+                con.execute("INSERT INTO jobs(signature,profile_id,file,status,attempts) VALUES (?,?,?,'running',1)",(digest,ident,str(path)))
             con.commit()
             logging.info("Processing %s with profile %s",path,name)
             try:
@@ -98,8 +112,15 @@ def once(con,profile,shares,seen):
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(result),digest))
                 logging.info("Completed %s: %s outputs",path,len(result["outputs"]))
             except Exception as ex:
-                con.execute("UPDATE jobs SET status='error',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(ex)[:1000],digest))
-                logging.exception("Processing failed: %s",path)
+                attempts=con.execute("SELECT attempts FROM jobs WHERE signature=?",(digest,)).fetchone()[0]
+                retryable=isinstance(ex,(OSError,TimeoutError)) and not isinstance(ex,FileExistsError)
+                if retryable and attempts<3:
+                    later=(datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=5*attempts)).isoformat()
+                    con.execute("UPDATE jobs SET status='retry',details=?,next_retry=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(ex)[:1000],later,digest))
+                    logging.warning("Temporary error; retry attempt %d/3 planned: %s",attempts,path)
+                else:
+                    con.execute("UPDATE jobs SET status='error',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(str(ex)[:1000],digest))
+                    logging.exception("Processing failed: %s",path)
             con.commit()
         except (OSError,sqlite3.Error,ValueError) as exc:
             logging.error("Unable to inspect %s: %s",path,exc)
