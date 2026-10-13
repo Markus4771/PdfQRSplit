@@ -110,3 +110,7 @@ Update 13.10.2026: Der Button **Verarbeitung wiederholen** startet mit einem Kli
 ## Fehlerbehebung Dateinamenskollision bei Wiederholung
 
 Praxisausgabe: Bei diversen Dateien `replay_count=0`, Status `error`, weil `Ausgang-Test/<dateiname>_0001.pdf` bereits vorhanden war. Neu: `output_naming.py` setzt bei neuen Aufträgen mit belegtem Originalausgabenamen einen stabilen `_neu_<digest>`-Stamm, bei manuell wiederholten Aufträgen weiterhin `_wiederholung_<digest>_<replay_count>`. `watcher.py` ruft die Funktion auf, Installer installiert Modul samt `test_output_naming.py`. Existierende PDFs werden nicht überschrieben. Bereits fehlerhafte Jobs per GUI manuell erneut freigeben. Vor-Ort-Test ausstehend.
+
+## Implementiert: Auftragswartung
+
+`jobs_ui.py`: fehlende Quellen und fehlende Ausgabe-PDFs über gespeicherte Ergebnisliste erkennen (JSON + Legacy-Python-Repr), konfigurierbare `job_retention_days` in SQLite (Default 90, 7–3650 Tage), `cleanup_jobs` löscht nur terminale, alte Auftragszeilen. `app.py`: Anzeige Quelle fehlt / Ausgabe fehlt und GUI-Feld für Aufbewahrung; Wiederholen-Button bei fehlender Quelle deaktiviert. `watcher.py`: JSON-Ausgabemanifest, Bereinigung höchstens stündlich, dauerhafte `archived_signatures`-Fingerabdrücke verhindern erneute Verarbeitung unveränderter Eingangs-PDFs nach DB-Bereinigung. `test_job_maintenance.py` mit Installer verbunden. PDFs niemals löschen. Praxistest noch ausstehend.
