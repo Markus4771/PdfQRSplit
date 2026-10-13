@@ -64,7 +64,7 @@ def remove_archived_source(source,archive,expected_sha256,before):
     archive=Path(archive)
     if source.is_symlink() or not source.is_file():
         raise ValueError("Eingangsdatei fehlt oder ist Symlink")
-    if source.stat()!=before or file_hash(source)!=expected_sha256:
+    if identity(source.stat())!=identity(before) or file_hash(source)!=expected_sha256:
         raise ValueError("Eingangsdatei hat sich geändert; nicht entfernen")
     if not archive.is_file() or archive.is_symlink() or file_hash(archive)!=expected_sha256:
         raise ValueError("Archiv nicht verifiziert; Original bleibt erhalten")
