@@ -4,13 +4,19 @@ import tempfile
 import unittest
 from pathlib import Path
 from datev_handoff import publish_datev
+import pymupdf
+
+def pdf(path):
+    with pymupdf.open() as doc:
+        doc.new_page().insert_text((80,100), 'Invoice TEST-ABC 123 EUR')
+        doc.save(path)
 
 class DatevTest(unittest.TestCase):
     def test_duplicate_never_released_again(self):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root); dest=root/"datev";dest.mkdir()
             registry=root/"datev.sqlite3";staging=dest/"stage";staging.mkdir()
-            a=staging/"a.pdf";a.write_bytes(b"%PDF-1.4\nexample\n")
+            a=staging/"a.pdf";pdf(a)
             one=publish_datev([(a,dest/"a.pdf")],dest,registry,"scanner")
             two=publish_datev([(a,dest/"b.pdf")],dest,registry,"scanner")
             self.assertEqual(len(one["outputs"]),1)
@@ -21,7 +27,7 @@ class DatevTest(unittest.TestCase):
     def test_missing_handoff_file_still_never_released_again(self):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root);dest=root/"datev";dest.mkdir()
-            registry=root/"db.sqlite3";a=dest/"source.pdf";a.write_bytes(b"pdf1")
+            registry=root/"db.sqlite3";a=dest/"source.pdf";pdf(a)
             one=publish_datev([(a,a)],dest,registry,"scan") 
             Path(one["outputs"][0]).unlink()
             two=publish_datev([(a,a)],dest,registry,"scan")
