@@ -10,6 +10,7 @@ import fitz
 from PIL import Image
 from pyzbar.pyzbar import decode as decode_barcodes
 from scan_pdf_cleaner import remove_blank_pages, crop_pdf_margins
+from safe_publish import publish
 
 def separators(source, expected):
     matches=[]
@@ -36,7 +37,7 @@ def sections(count, markers, keep):
     if current:result.append(current)
     return result
 
-def run(source, out_dir, qr_text, options):
+def run(source, out_dir, qr_text, options, output_stem=None):
     source=Path(source).resolve(strict=True)
     target=Path(out_dir).resolve()
     target.mkdir(parents=True,exist_ok=True)
@@ -75,21 +76,13 @@ def run(source, out_dir, qr_text, options):
                 if options.get("deskew"):cmd.insert(-2,"--deskew")
                 subprocess.run(cmd,check=True,timeout=900,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
                 current=ocr
-            final=target/f"{source.stem}_{index:04}.pdf"
+            final=target/f"{output_stem or source.stem}_{index:04}.pdf"
             if final.exists():raise FileExistsError(f"Ausgabedatei bereits vorhanden: {final}")
             staged=temp/f"publish-{index:04}.pdf"
             staged.write_bytes(current.read_bytes())
             generated.append((staged,final))
-        # Prevent overwrite if a file appeared during processing.
-        published=[]
-        try:
-            for staged,final in generated:
-                fd=os.open(final,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o640)
-                published.append(final)
-                with os.fdopen(fd,"wb") as stream:stream.write(staged.read_bytes());stream.flush();os.fsync(stream.fileno())
-        except Exception:
-            for f in published:f.unlink(missing_ok=True)
-            raise
+        # Hard-link fully staged files into place, without exposing partial PDFs.
+        publish(generated,target)
     return {"source":str(source),"qr_pages":[x+1 for x in markers],"outputs":[str(f) for _,f in generated]}
 
 def main():
