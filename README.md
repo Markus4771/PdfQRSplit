@@ -226,3 +226,11 @@ Das neue Nur-Leseprogramm zeigt QR-Inhalte und Seitenzahlen ohne Dokumente zu ve
 ```
 
 Achtung: QR-Inhalte können vertrauliche Daten enthalten; Ausgabe nicht ungeprüft öffentlich teilen. Für die Diagnose nicht nochmals die bereits verarbeiteten Dateien im Eingang neu anstoßen; vorhandene Ausgabe-Dateinamen würden sonst kollidieren.
+
+## Verarbeitung manuell wiederholen und fremde QR-Codes
+
+In der Web-GUI unter **Aufträge & Fehler** hat jeder abgeschlossene, fehlgeschlagene oder unterbrochene Auftrag den Button **Verarbeitung wiederholen**. Nach Bestätigung legt der Watcher neue Ergebnisse mit dem Namenszusatz `_wiederholung_<hash>_<nummer>` an; vorhandene Ausgabedateien und Eingangsdateien bleiben erhalten. Für dieselbe Quelldatei sind mehrere manuelle Wiederholungen möglich. `jobs.replay_count` wird automatisch bei der Installation bzw. beim ersten Aufruf der Auftragsverwaltung in SQLite ergänzt.
+
+Die QR-Trennung prüft bereits jeden dekodierten QR-Code auf **exakte Übereinstimmung** mit dem konfigurierten Text (aktuell `SCAN-TRENNUNG-001`). Alle anderen QR-Codes lösen keine Dokumenttrennung aus; ihre Seiten werden normal weiterverarbeitet. Falls kein passender QR-Code gefunden wird, erfolgt keine QR-Aufteilung; andere aktivierte Schritte wie OCR laufen weiter. Nur tatsächliche Fehler bei der PDF-Bearbeitung lassen den Auftrag fehlschlagen.
+
+Update: `git pull --ff-only && bash install.sh` im Repositoryverzeichnis. Änderungen an der Datenbank sind automatisch und erhalten bestehende Aufträge. Verhalten auf dem Zielsystem praktisch testen.
