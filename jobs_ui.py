@@ -60,6 +60,15 @@ def save_retention(database, days):
 def cleanup_jobs(con):
     """Clean terminal DB history only. Never touch PDFs or active jobs."""
     cutoff=(datetime.now(timezone.utc)-timedelta(days=retention_days(con))).strftime("%Y-%m-%d %H:%M:%S")
+    con.execute("""CREATE TABLE IF NOT EXISTS archived_signatures (
+        signature TEXT PRIMARY KEY,
+        archived_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    # Persist compact fingerprints so cleaning history cannot trigger new processing
+    # of unchanged PDFs that remain in the input directory.
+    con.execute("""INSERT OR IGNORE INTO archived_signatures(signature)
+        SELECT signature FROM jobs
+        WHERE status IN ('done','error','interrupted') AND updated_at < ?""",(cutoff,))
     cursor=con.execute("DELETE FROM jobs WHERE status IN ('done','error','interrupted') AND updated_at < ?",(cutoff,))
     con.commit()
     return cursor.rowcount
