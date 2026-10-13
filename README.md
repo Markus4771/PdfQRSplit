@@ -165,3 +165,9 @@ In `app.py` sind Formulare zum Erstellen, Einstellen der Schreibberechtigung, Pa
 `install.sh` richtet `/etc/samba/qrscan-shares.conf` als separate Include-Datei ein, erzeugt eine Sicherung der ursprünglichen `smb.conf`, installiert den Root-Helfer unter `/usr/local/lib/qrscan/samba_helper.py` sowie eine eingeschränkte sudoers-Regel für den Dienstbenutzer. GUI, Watcher, ACL-Helfer und Selbsttest verwenden dieselbe Samba-Konfiguration. Bestehende Stirling-Freigaben werden nicht direkt verändert.
 
 **Unbedingt beachten:** Keine vollständige Debian-13-Installation und kein Live-SMB-Test durchgeführt. Das Projekt benötigt einen Testlauf mit zwei Shares und gleichem Benutzer, Passwortwechsel, Windows-Anmeldung, ACL-Prüfung und einem PDF-End-to-End-Test. Die GUI verwendet HTTP Basic Auth: Port 8086 nur in isolierten Administrationsnetzen oder mit vorgeschaltetem TLS verwenden.
+
+## Erweiterte Profilbearbeitung (Punkt 2)
+
+Bestehende Profile sind jetzt direkt in der Weboberfläche bearbeitbar: Name, Samba-Eingang/-Ausgang, QR-Trennung, QR-Trennblatt entfernen, Leerseiten, Randbeschneidung und OCR. Zusätzlich je Profil: Leerseiten-Schwellwert (0–2 %), Sprache Deutsch/Englisch/beide, PDF oder PDF/A, OCR-Rotation und Entzerrung (Deskew). Neue Profile bekommen zunächst Standardwerte und können danach bearbeitet werden. Bestehende SQLite-Datenbanken werden beim Start automatisch um neue Spalten ergänzt. Watcher und Worker lesen die Werte für neue Jobs. Bereits laufende Jobs ändern sich dadurch nicht.
+
+**Noch zu testen:** Live-Installation auf Debian 13; insbesondere das OCRmyPDF-PDF/A-Verhalten und schwach bedruckte Seiten. Auf bestehenden Installationen bei Updates vorher SQLite sichern. Die Einstellung *Ränder beschneiden* verwendet weiterhin einen festen Beschnitt und ist keine automatische Inhaltserkennung.
