@@ -44,6 +44,16 @@ class CompanyProcessingTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             sync_profiles(self.db,self.cid,self.shares)
 
+    def test_single_document_type_editor(self):
+        from company_processing import render
+        from company_admin import TYPES
+        html=render(self.db,self.cid,["Rechnungseingang"],lambda x:x,self.cid,"Rechnungseingang")
+        self.assertEqual(html.count("action='/company-processing'"),1)
+        self.assertIn("name='doc_type' value='Rechnungseingang'",html)
+        self.assertIn("Firmenstandard (alle Belegarten)",html)
+        overview=render(self.db,self.cid,["Rechnungseingang"],lambda x:x,None,"")
+        self.assertNotIn("action='/company-processing'",overview)
+
     def test_missing_shares(self):
         with self.assertRaises(ValueError):
             sync_profiles(self.db,self.cid,set())
