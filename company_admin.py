@@ -4,6 +4,7 @@ Never changes existing shares automatically; new shares must be provisioned expl
 """
 import html
 import re
+import company_processing
 
 TYPES=("Rechnungseingang","Rechnungsausgang","Kasse","Sonstige","OhneBelegtyp")
 ROLES=("none","read","input","write","admin")
@@ -25,6 +26,7 @@ def migrate(con):
        company_id INTEGER NOT NULL, username TEXT NOT NULL, role TEXT NOT NULL,
        PRIMARY KEY(company_id,username),
        FOREIGN KEY(company_id) REFERENCES companies(id))""")
+    company_processing.migrate(con)
     con.commit()
 
 def share_name(code,doc_type,function):
@@ -110,6 +112,7 @@ def render(con):
         for t in TYPES:
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
         out+="<button>Belegarten speichern</button></form>"
+        out+=company_processing.render(con,cid,types,esc)
         out+="<h3>Benutzer der Firma zuweisen</h3><p class='small'>Mehrere Benutzer per Checkbox auswählen. Eine Berechtigungsstufe gilt für die neu ausgewählten Benutzer; vorhandene Rollen bleiben bei bereits zugewiesenen Benutzern erhalten.</p>"
         out+="<p>Aktuelle Zuordnung: "+(esc(", ".join(f"{u}: {r}" for u,r in acl)) if acl else "Keine Benutzer zugewiesen")+"</p>"
         out+="<form method='post' action='/company-users-save'><input type='hidden' name='company_id' value='"+str(cid)+"'>"
