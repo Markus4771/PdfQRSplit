@@ -22,6 +22,7 @@ import review_queue
 import review_pdf
 import duplicate_review
 import notifications
+import company_web_access
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -122,10 +123,16 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; script-src 'self'")
         if unauthorized:self.send_header("WWW-Authenticate",'Basic realm="QR Scan Manager"')
         self.end_headers();self.wfile.write(payload)
+    def actor(self):
+        if valid_auth(self.headers.get("Authorization","")):return ("admin",None)
+        with db() as c:return company_web_access.authenticate(c,self.headers.get("Authorization",""))
     def guard(self):
-        if not valid_auth(self.headers.get("Authorization","")):
-            self.page("<h1>Anmeldung erforderlich</h1>",401,True);return False
-        return True
+        actor=self.actor()
+        route=urlsplit(self.path).path
+        if actor and (actor[0]=="admin" or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf"))):
+            return True
+        self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
+        return False
     def password_needed(self):
         return bool(json.loads(AUTH.read_text()).get("must_change"))
     def password_form(self,msg=""):
@@ -194,6 +201,8 @@ class Handler(BaseHTTPRequestHandler):
             token=parse_qs(route.query).get("signature",[""])[0]
             try:
                 with db() as c:
+                    actor=self.actor()
+                    if actor[0]!="admin" and not company_web_access.owns_job(c,token,actor[1]):raise ValueError("Keine Berechtigung")
                     if route.path=="/review-pdf":
                         path=review_pdf.source_for_case(c,token,ROOT,DATA/"original-archive")
                     else:
@@ -242,9 +251,12 @@ class Handler(BaseHTTPRequestHandler):
             state=params.get("state",["active"])[0]
             if state not in ("active",*review_queue.STATES):state="active"
             with db() as c:
-                firms=c.execute("SELECT id,code FROM companies ORDER BY code").fetchall()
+                actor=self.actor()
+                permitted=actor[1] if actor[0]!="admin" else None
+                firms=[r for r in c.execute("SELECT id,code FROM companies ORDER BY code") if permitted is None or r[0] in permitted]
                 types=company_admin.TYPES
-                try:items=review_queue.records(c,company,doctype,state)
+                if permitted is not None and company and (not company.isdigit() or int(company) not in permitted):return self.page("Keine Berechtigung",403)
+                try:items=review_queue.records(c,company,doctype,state,allowed_companies=permitted)
                 except ValueError:return self.page("Ungültige Filter",400)
             esc=lambda v:html.escape(str(v),quote=True)
             page="<header><h1>PDF-Prüfwarteschlange</h1><a href='/companies'>Firmenverwaltung</a></header>"
@@ -265,9 +277,11 @@ class Handler(BaseHTTPRequestHandler):
                 page+="<p><a href='/review-pdf?signature="+esc(item["signature"])+"' target='_blank' rel='noopener'>Original-PDF ansehen</a> · <a href='/review-draft?signature="+esc(item["signature"])+"'>Korrekturentwurf herunterladen</a></p>"
                 if item["category"]=="duplicate":
                     page+="<p><a href='/duplicate-review?signature="+esc(item["signature"])+"'>Dublettenvergleich und Entscheidung</a></p>"
-                page+="<form method='post' action='/review-draft-create'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Seiten übernehmen (z. B. 1,3,4; leer = alle)</label><input name='pages' maxlength='512' placeholder='Alle Seiten'><label>Seiten drehen</label><select name='rotation'><option value='0'>Nicht drehen</option><option value='90'>90 Grad</option><option value='180'>180 Grad</option><option value='270'>270 Grad</option></select><button>Korrekturentwurf erstellen</button></form>"
+                if self.actor()[0]=="admin":
+                    page+="<form method='post' action='/review-draft-create'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Seiten übernehmen (z. B. 1,3,4; leer = alle)</label><input name='pages' maxlength='512' placeholder='Alle Seiten'><label>Seiten drehen</label><select name='rotation'><option value='0'>Nicht drehen</option><option value='90'>90 Grad</option><option value='180'>180 Grad</option><option value='270'>270 Grad</option></select><button>Korrekturentwurf erstellen</button></form>"
 
-                page+="<form method='post' action='/review-update'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Prüfstatus</label><select name='state'>"
+                if self.actor()[0]=="admin":
+                    page+="<form method='post' action='/review-update'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Prüfstatus</label><select name='state'>"
                 for key,title in (("open","Offen"),("in_progress","In Bearbeitung"),("resolved","Erledigt"),("dismissed","Verworfen")):
                     page+="<option value='"+key+"'"+(" selected" if item["state"]==key else "")+">"+title+"</option>"
                 page+="</select><label>Prüfnotiz</label><textarea name='note' maxlength='1000' rows='3'>"+esc(item["note"])+"</textarea><button>Prüfstatus speichern</button></form></article><hr>"
@@ -293,6 +307,12 @@ class Handler(BaseHTTPRequestHandler):
                         columns={r[1] for r in con.execute("PRAGMA table_info(datev_suspects)")}
                         if "review_path" in columns:
                             entries=con.execute("SELECT digest,source,matching_digest,review_path FROM datev_suspects ORDER BY created_at DESC LIMIT 200").fetchall()
+            actor=self.actor()
+            if actor[0]!="admin":
+                with db() as c:
+                    marks=",".join("?" for _ in actor[1])
+                    allowed={r[0] for r in c.execute("SELECT j.file FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id WHERE l.company_id IN ("+marks+")",tuple(sorted(actor[1])))}
+                entries=[entry for entry in entries if entry[1] in allowed]
             lines=[]
             for digest,source,match,path in entries:
                 present=bool(path and Path(path).is_file())
@@ -348,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision","/notifications-save"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -390,6 +410,15 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location","/duplicate-review?signature="+quote(signature))
             self.end_headers()
             return
+        if self.path in ("/company-user-email","/company-web-password"):
+            try:
+                with db() as c:
+                    if self.path=="/company-user-email":company_admin.save_email(c,get("username"),get("email"))
+                    else:company_web_access.set_password(c,get("username"),get("password"))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Benutzerkonfiguration fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303);self.send_header("Location","/companies");self.end_headers();return
         if self.path=="/notifications-save":
             if self.password_needed():return self.password_form()
             try:
