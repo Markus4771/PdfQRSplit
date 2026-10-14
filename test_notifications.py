@@ -10,6 +10,10 @@ class NotificationTests(unittest.TestCase):
             CREATE TABLE company_profile_links(company_id INTEGER,doc_type TEXT,profile_id INTEGER);
             INSERT INTO companies VALUES(1,'10001');
             INSERT INTO company_profile_links VALUES(1,'Kasse',5);""")
+        self.db.execute("CREATE TABLE smb_accounts(username TEXT,email TEXT)")
+        self.db.execute("CREATE TABLE company_access(company_id INTEGER,username TEXT,role TEXT)")
+        self.db.execute("INSERT INTO smb_accounts VALUES ('anna','anna@example.org')")
+        self.db.execute("INSERT INTO company_access VALUES (1,'anna','admin')")
         notifications.save(self.db,dict(host="smtp.example.org",port=587,username="user",secret="secret",sender="a@example.org",recipient="b@example.org",mode="starttls",enabled=1))
     def tearDown(self):self.db.close()
     def test_one_critical_mail_per_event(self):
