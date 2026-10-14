@@ -70,7 +70,7 @@ def main():
             fail("Linux-Benutzer existiert bereits; Konto nicht verändert")
         except KeyError:pass
         run(["useradd","--system","--no-create-home","--shell","/usr/sbin/nologin",user])
-        result=subprocess.run(["smbpasswd","-s","-a",user],input=password+"\\n"+password+"\\n",capture_output=True,text=True,timeout=20)
+        result=subprocess.run(["smbpasswd","-s","-a",user],input=password+"\n"+password+"\\n",capture_output=True,text=True,timeout=20)
         if result.returncode:fail("SMB-Benutzer konnte nicht eingerichtet werden")
         print(json.dumps({"ok":True}));return
     if action=="company-user-register":
