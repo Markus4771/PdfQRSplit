@@ -34,6 +34,19 @@ class TestCompanyAdmin(unittest.TestCase):
         with self.assertRaises(ValueError):
             save_user_selection(self.db,cid,[],"admin")
 
+    def test_company_status_shares_and_profiles(self):
+        from company_admin import render_company_status
+        cid=save_company(self.db,"10001","Test",["Kasse"])
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES ('anna')")
+        change_access(self.db,cid,"anna","admin")
+        names=[share_name("10001","Kasse",fn) for fn in FUNCTIONS]
+        status={"ok":True,"shares":[{"name":name} for name in names]}
+        html=render_company_status(self.db,cid,"10001",["Kasse"],[("anna","admin")],status,str)
+        self.assertIn("4/4",html)
+        self.assertIn("Fehlt oder abweichend",html)
+        html=render_company_status(self.db,cid,"10001",["Kasse"],[("anna","admin")],{"ok":False},str)
+        self.assertIn("Nicht pruefbar",html)
+
     def test_invalid_name_and_types(self):
         with self.assertRaises(ValueError):
             save_company(self.db,"unzulässig!","Bad",["Kasse"])
