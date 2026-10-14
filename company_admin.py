@@ -147,6 +147,9 @@ def render(con,selected_company=None,selected_type="",share_data=None):
         forms+="<h3>Benutzer aus Verwaltung entfernen</h3><p class='small'>Nur möglich, wenn der Benutzer keiner Firma und keiner verwalteten Freigabe mehr zugeordnet ist. Das Linux-/Samba-Konto bleibt erhalten.</p>"
         for u in users:
             forms+="<form method='post' action='/company-user-delete'><input type='hidden' name='username' value='"+esc(u)+"'><label><input type='checkbox' name='confirm' value='yes' required> "+esc(u)+" aus der Firmenverwaltung entfernen</label><button>Benutzer entfernen</button></form>"
+    forms+="<h3>Web-Zugänge für Firmenbenutzer</h3><p class='small'>Eigenes Web-Passwort für die schreibgeschützten Firmen-Prüfansichten. Nicht das Samba-Passwort verwenden.</p>"
+    for username in users:
+        forms+="<form method='post' action='/company-web-password'><input type='hidden' name='username' value='"+esc(username)+"'><label>"+esc(username)+" – neues Web-Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' maxlength='256' required><button>Web-Zugang setzen</button></form>"
     forms+="<h3>E-Mail-Adressen der Firmenbenutzer</h3><p class='small'>Warnungen werden an die E-Mail-Adressen der zugeordneten Benutzer versendet.</p>"
     for username,email in con.execute("SELECT username,email FROM smb_accounts ORDER BY username"):
         forms+="<form method='post' action='/company-user-email'><input type='hidden' name='username' value='"+esc(username)+"'><label>"+esc(username)+" – E-Mail-Adresse</label><input name='email' type='email' maxlength='254' value='"+esc(email)+"' placeholder='benutzer@firma.de'><button>E-Mail speichern</button></form>"
