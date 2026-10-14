@@ -19,6 +19,7 @@ from profile_settings import migrate,check,controls,SELECT
 import company_admin
 import company_processing
 import review_queue
+import review_pdf
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -138,6 +139,34 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+        if route.path in ("/review-pdf","/review-draft"):
+            if self.password_needed():return self.password_form()
+            token=parse_qs(route.query).get("signature",[""])[0]
+            try:
+                with db() as c:
+                    if route.path=="/review-pdf":
+                        path=review_pdf.source_for_case(c,token,ROOT,DATA/"original-archive")
+                    else:
+                        review_pdf.source_for_case(c,token,ROOT,DATA/"original-archive")
+                        path=DATA/"review-drafts"/(token+".pdf")
+                        if not path.is_file() or path.is_symlink():raise FileNotFoundError("Noch kein korrigierter Entwurf")
+                size=path.stat().st_size
+                if size>100*1024*1024:raise ValueError("PDF größer als Vorschau-Limit")
+                self.send_response(200)
+                self.send_header("Content-Type","application/pdf")
+                self.send_header("Content-Disposition",("inline" if route.path=="/review-pdf" else "attachment")+"; filename=review-"+token[:12]+".pdf")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Content-Length",str(size))
+                self.send_header("Cache-Control","no-store")
+                self.end_headers()
+                with path.open("rb") as stream:
+                    while True:
+                        chunk=stream.read(65536)
+                        if not chunk:break
+                        self.wfile.write(chunk)
+                return
+            except (ValueError,FileNotFoundError,OSError) as exc:
+                return self.page("<h1>PDF nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",404)
         if route.path not in ("/","/jobs","/datev-review","/companies","/review"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
         if route.path=="/review":
@@ -167,6 +196,9 @@ class Handler(BaseHTTPRequestHandler):
             for item in items:
                 page+="<article><h3>"+esc(item["filename"])+"</h3><p>"+esc(item["company"])+" · "+esc(item["doctype"])+" · "+esc(item["severity"])+" · "+esc(item["category"])+"</p>"
                 page+="<p>"+esc(item["message"])+"</p><p class='small'>"+esc(item["updated"])+" · Status: "+esc(item["state"])+"</p>"
+                page+="<p><a href='/review-pdf?signature="+esc(item["signature"])+"' target='_blank' rel='noopener'>Original-PDF ansehen</a> · <a href='/review-draft?signature="+esc(item["signature"])+"'>Korrekturentwurf herunterladen</a></p>"
+                page+="<form method='post' action='/review-draft-create'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Seiten übernehmen (z. B. 1,3,4; leer = alle)</label><input name='pages' maxlength='512' placeholder='Alle Seiten'><label>Seiten drehen</label><select name='rotation'><option value='0'>Nicht drehen</option><option value='90'>90 Grad</option><option value='180'>180 Grad</option><option value='270'>270 Grad</option></select><button>Korrekturentwurf erstellen</button></form>"
+
                 page+="<form method='post' action='/review-update'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Prüfstatus</label><select name='state'>"
                 for key,title in (("open","Offen"),("in_progress","In Bearbeitung"),("resolved","Erledigt"),("dismissed","Verworfen")):
                     page+="<option value='"+key+"'"+(" selected" if item["state"]==key else "")+">"+title+"</option>"
@@ -248,7 +280,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -257,6 +289,19 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/review-draft-create":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    draft=review_pdf.prepare_draft(c,get("signature"),DATA/"review-drafts",ROOT,DATA/"original-archive",get("pages"),int(get("rotation")))
+                    review_queue.set_case(c,get("signature"),"in_progress","Korrekturentwurf erstellt; noch nicht an DATEV übergeben")
+                    c.commit()
+            except (ValueError,OSError,sqlite3.Error) as exc:
+                return self.page("<h1>Korrektur fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",400)
+            self.send_response(303)
+            self.send_header("Location","/review-draft?signature="+quote(get("signature")))
+            self.end_headers()
+            return
         if self.path=="/review-update":
             if self.password_needed():return self.password_form()
             try:
