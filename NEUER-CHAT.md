@@ -212,3 +212,7 @@ Die bisherige lange Profil- und manuelle Samba-Maske wird auf der QR Scan Manage
 ## 14.10.2026: SMB-Benutzer-Checkboxen
 
 `company-users-save` verwendet jetzt `company_admin.save_user_selection`: validiert die markierten SMB-Benutzer, übernimmt die ausgewählte Rolle für alle markierten Personen und entfernt nicht mehr markierte Zuordnungen. Leere Auswahl wird mit einer konkreten Fehlermeldung statt stiller Löschung abgewiesen. Nach erfolgreichem Speichern erfolgt Rücksprung direkt zur betreffenden Firma. Im Formular ist die Rollenwirkung erläutert. Regressionstest `test_checkbox_selection_persists_and_updates` ergänzt. DB und Samba-Freigaben werden durch GitHub-Push nicht direkt verändert; Debian-Installer und UI prüfen.
+
+## Firmen-Statusanzeige (14.10.2026)
+
+Die Firmenverwaltung `/companies` zeigt pro Firma einen schreibgeschuetzten Einrichtungsstatus. Sie liest die aktuell zugeordneten SMB-Benutzer aus `company_access`, die vorhandenen Samba-Freigaben über den Samba-Manager (Soll: vier Freigaben je Belegart) und die automatisch verknuepften Profile aus `company_profile_links`/`profiles`. Pro Belegart werden Anzahl vorhandener Freigaben und Profilstatus angezeigt. Wenn der Samba-Manager nicht erreichbar ist, steht 'Nicht pruefbar' statt einer erfundenen Erfolgsmeldung. 'Konfiguration vollstaendig angelegt' bedeutet NICHT, dass Scans und DATEV getestet wurden. Keine Daten veraendert. Regressionstest in `test_company_admin.py`. Installation mit `git pull --ff-only && bash install.sh`.
