@@ -8,7 +8,7 @@ def migrate(con):
     con.execute("""CREATE TABLE IF NOT EXISTS review_cases (
       signature TEXT PRIMARY KEY, state TEXT NOT NULL DEFAULT 'open',
       note TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
-def records(con,company="",doctype="",state="active",limit=150):
+def records(con,company="",doctype="",state="active",limit=150,allowed_companies=None):
     migrate(con)
     sql="""SELECT j.signature,j.file,j.status,j.details,j.updated_at,c.id,c.code,l.doc_type,
                  COALESCE(r.state,'open'),COALESCE(r.note,'')
@@ -17,6 +17,10 @@ def records(con,company="",doctype="",state="active",limit=150):
           LEFT JOIN review_cases r ON r.signature=j.signature
           WHERE j.status IN ('error','retry','interrupted','done')"""
     args=[]
+    if allowed_companies is not None:
+        if not allowed_companies:return []
+        sql+=" AND c.id IN ("+",".join("?" for _ in allowed_companies)+")"
+        args.extend(sorted(allowed_companies))
     if company:
         sql+=" AND c.id=?";args.append(int(company))
     if doctype:
