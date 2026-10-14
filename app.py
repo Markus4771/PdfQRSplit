@@ -144,7 +144,10 @@ class Handler(BaseHTTPRequestHandler):
             try:cid=int(params.get("company_id",["0"])[0])
             except ValueError:cid=None
             typ=params.get("doc_type",[""])[0]
-            with db() as c: content=company_admin.render(c,cid,typ)
+            with db() as c:
+                content=company_admin.render(c,cid,typ)
+                qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
+                content="<section><h2>QR-Trenncode (für alle Firmen)</h2><p class='small'>Gemeinsamer QR-Trenncode für bestehende und neue Verarbeitungsprofile.</p><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section>"+content
             return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
         if self.path=="/datev-review":
             entries=[]
@@ -194,7 +197,6 @@ class Handler(BaseHTTPRequestHandler):
         s=shares()
         with db() as c:
             profiles=c.execute("SELECT "+SELECT+" FROM profiles ORDER BY name").fetchall()
-            qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
         options="".join("<option value='"+html.escape(n,quote=True)+"'>"+html.escape(n)+"</option>" for n in s)
         rows=""
         for p in profiles:
@@ -215,7 +217,7 @@ class Handler(BaseHTTPRequestHandler):
             smb_html+="<form method='post' action='/smb-delete'><input type='hidden' name='name' value='"+safe+"'><button>Freigabe entfernen (Dateien bleiben)</button></form>"
         smb_html+="</section>"
         if not result.get("ok"): smb_html="<p class='notice'>"+html.escape(result.get("error","Samba-Fehler"))+"</p>"+smb_html
-        self.page("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · <a href='/jobs'>Aufträge & Fehler</a></nav></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
+        self.page("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · <a href='/jobs'>Aufträge & Fehler</a></nav></header><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
         if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing"):return self.page("Nicht gefunden",404)
@@ -431,7 +433,7 @@ class Handler(BaseHTTPRequestHandler):
                 if c.execute("SELECT 1 FROM company_profile_links WHERE profile_id=?",(ident,)).fetchone():
                     return self.page("Firmenprofil kann nur in der Firmenverwaltung geändert werden",409)
                 c.execute("DELETE FROM profiles WHERE id=?",(ident,))
-        self.send_response(303);self.send_header("Location","/");self.end_headers()
+        self.send_response(303);self.send_header("Location","/companies" if self.path=="/qr" else "/");self.end_headers()
 
 if __name__=="__main__":
     DATA.mkdir(parents=True,exist_ok=True)
