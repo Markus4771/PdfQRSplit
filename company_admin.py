@@ -88,7 +88,8 @@ def render(con):
         out+=f"<label><input type='checkbox' name='type' value='{t}'"+(" checked" if i<2 else "")+"> "+t+"</label>"
     out+="<button>Firma anlegen</button></form></section>"
     out+="<section><h2>SMB-Benutzer</h2><p class='small'>Konten werden separat von der GUI-Anmeldung verwaltet. Bestehende Konten werden nicht überschrieben.</p><form method='post' action='/company-user-create'><label>Neuer SMB-Benutzer</label><input name='username' required><label>Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><button>Benutzer anlegen</button></form>"
-    out+="<p>Über diese Verwaltung angelegte Benutzer: "+(esc(", ".join(users)) if users else "Noch keine")+"</p></section>"
+    out+="<form method='post' action='/company-user-register'><h3>Vorhandenen Samba-Benutzer übernehmen</h3><label>SMB-Benutzer</label><input name='username' required><label>Bestehendes SMB-Passwort zur Prüfung</label><input type='password' name='password' required><button>Vorhandenen Benutzer hinzufügen</button></form>"
+    out+="<p>Verfügbare Benutzer: "+(esc(", ".join(users)) if users else "Noch keine")+"</p></section>"
     for cid,code,title in rows:
         types=[x[0] for x in con.execute("SELECT doc_type FROM company_types WHERE company_id=?",(cid,))]
         acl=con.execute("SELECT username,role FROM company_access WHERE company_id=? ORDER BY username",(cid,)).fetchall()
