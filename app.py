@@ -475,6 +475,7 @@ class Handler(BaseHTTPRequestHandler):
                         c.executemany("INSERT INTO company_types(company_id,doc_type) VALUES (?,?)",[(ident,t) for t in selected])
                     elif self.path=="/company-user-create":
                         user=get("username").strip()
+                        company_admin.validate_email(get("email"))
                         if not company_admin.USER.fullmatch(user):raise ValueError("Ungültiger SMB-Benutzername")
                         if c.execute("SELECT 1 FROM smb_accounts WHERE username=?",(user,)).fetchone():raise ValueError("SMB-Benutzer existiert bereits")
                         response=samba_call({"action":"company-user-create","username":user,"password":get("password")})
@@ -483,6 +484,7 @@ class Handler(BaseHTTPRequestHandler):
                         company_admin.save_email(c,user,get("email"))
                     elif self.path=="/company-user-register":
                         user=get("username").strip()
+                        company_admin.validate_email(get("email"))
                         if not company_admin.USER.fullmatch(user):raise ValueError("Ungültiger SMB-Benutzername")
                         response=samba_call({"action":"company-user-register","username":user,"password":get("password")})
                         if not response.get("ok"):raise ValueError(response.get("error","SMB-Konto konnte nicht geprüft werden"))
