@@ -115,7 +115,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length",str(len(payload)))
         self.send_header("Cache-Control","no-store")
         self.send_header("X-Frame-Options","DENY")
-        self.send_header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; form-action 'self'")
+        self.send_header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; script-src 'self'")
         if unauthorized:self.send_header("WWW-Authenticate",'Basic realm="QR Scan Manager"')
         self.end_headers();self.wfile.write(payload)
     def guard(self):
@@ -129,6 +129,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if not self.guard():return
         route=urlsplit(self.path)
+        if route.path=="/company-ui.js":
+            payload=b'document.querySelectorAll("select[data-auto-submit=belegart]").forEach(s=>s.addEventListener("change",()=>s.form.requestSubmit()));'
+            self.send_response(200)
+            self.send_header("Content-Type","application/javascript; charset=utf-8")
+            self.send_header("Content-Length",str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         if route.path not in ("/","/jobs","/datev-review","/companies"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
         if route.path=="/companies":
@@ -137,7 +145,7 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:cid=None
             typ=params.get("doc_type",[""])[0]
             with db() as c: content=company_admin.render(c,cid,typ)
-            return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content)
+            return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
         if self.path=="/datev-review":
             entries=[]
             registry=DATA/"datev.sqlite3"
