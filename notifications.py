@@ -68,12 +68,23 @@ def notify(con,signature,profile_id,status,details,filename):
     category,severity,message=classify(status,details)
     if status not in ("error","interrupted") and severity!="Warnung":return False
     event=status if status in ("error","interrupted") else "warning"
-    if con.execute("SELECT 1 FROM notification_sent WHERE signature=? AND event=?",(signature,event)).fetchone():return False
+    recipients=con.execute("""SELECT DISTINCT a.username,b.email FROM company_access a
+        JOIN smb_accounts b ON b.username=a.username
+        JOIN company_profile_links l ON l.company_id=a.company_id
+        WHERE l.profile_id=? AND b.email<>'' ORDER BY b.email""",(profile_id,)).fetchall()
+    if not recipients:return False
     subject="[PdfQRSplit] "+("FEHLER" if event!="warning" else "WARNUNG")+" – "+row[0]+" / "+row[1]
-    body=("Firma: "+row[0]+"\nBelegart: "+row[1]+"\nPDF: "+Path(filename).name+
-        "\nStatus: "+status+"\nKategorie: "+category+"\nFehler: "+message[:1000]+
-        "\nAuftrag: "+signature+"\nWeitere Informationen in der PDF-Prüfwarteschlange.\n")
-    send(settings,subject,body)
-    con.execute("INSERT OR IGNORE INTO notification_sent(signature,event) VALUES (?,?)",(signature,event))
-    con.commit()
-    return True
+    body=("Firma: "+row[0]+"\\nBelegart: "+row[1]+"\\nPDF: "+Path(filename).name+
+        "\\nStatus: "+status+"\\nKategorie: "+category+"\\nFehler: "+message[:1000]+
+        "\\nAuftrag: "+signature+"\\nWeitere Informationen in der PDF-Prüfwarteschlange.\\n")
+    any_sent=False
+    for username,email in recipients:
+        personal_event=event+":"+username
+        if con.execute("SELECT 1 FROM notification_sent WHERE signature=? AND event=?",(signature,personal_event)).fetchone():
+            continue
+        recipient_settings=dict(settings,recipient=email)
+        send(recipient_settings,subject,body)
+        con.execute("INSERT OR IGNORE INTO notification_sent(signature,event) VALUES (?,?)",(signature,personal_event))
+        con.commit()
+        any_sent=True
+    return any_sent
