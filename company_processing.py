@@ -136,7 +136,7 @@ def render(con,cid,types,esc,selected_company=None,selected_type=""):
     out+="<h4>"+esc(selected_type or "Firmenstandard")+"</h4>"
     for flag in FLAGS:
         out+="<label><input type='checkbox' name='"+flag+"'"+(" checked" if settings[flag] else "")+"> "+NAMES[flag]+"</label>"
-    out+="<label>Leerseiten: maximaler Schwarzanteil (%)</label><input type='number' name='blank_threshold' min='0' max='2' step='0.05' value='"+esc(settings["blank_threshold"])+"' required>"
+    out+="<label>Leerseiten: maximaler Schwarzanteil (%)</label><input type='number' name='blank_threshold' min='0' max='2' step='0.05' value='"+esc(str(settings["blank_threshold"]))+"' required>"
     out+="<label>OCR-Sprache</label><select name='ocr_languages'>"
     for code,label in (("deu","Deutsch"),("eng","Englisch"),("deu+eng","Deutsch + Englisch")):
         out+="<option value='"+code+"'"+(" selected" if settings["ocr_languages"]==code else "")+">"+label+"</option>"
