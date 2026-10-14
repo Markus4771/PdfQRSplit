@@ -269,16 +269,7 @@ class Handler(BaseHTTPRequestHandler):
                     elif self.path=="/company-users-save":
                         ident=int(get("company_id"))
                         chosen=data.get("username",[])
-                        if len(chosen)!=len(set(chosen)):raise ValueError("Benutzerauswahl enthält Duplikate")
-                        if get("role") not in ("read","input","write","admin"):raise ValueError("Ungültige Berechtigung")
-                        current=dict(c.execute("SELECT username,role FROM company_access WHERE company_id=?",(ident,)))
-                        available={r[0] for r in c.execute("SELECT username FROM smb_accounts")}
-                        if not c.execute("SELECT 1 FROM companies WHERE id=?",(ident,)).fetchone():raise ValueError("Firma nicht vorhanden")
-                        if any(u not in available for u in chosen):raise ValueError("Unbekannter Benutzer")
-                        # Save as one set: unchecked users are unassigned.
-                        c.execute("DELETE FROM company_access WHERE company_id=?",(ident,))
-                        for user in chosen:
-                            company_admin.change_access(c,ident,user,current.get(user,get("role")))
+                        company_admin.save_user_selection(c,ident,chosen,get("role"))
                         # Apply revocations immediately on existing generated shares.
                         row=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
                         existing={x["name"] for x in samba_call({"action":"list"}).get("shares",[])}
@@ -340,6 +331,8 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError,sqlite3.Error) as exc:
                 return self.page("<h1>Firmenverwaltung: Fehler</h1><p>"+html.escape(str(exc))+"</p><a href='/companies'>Zurück</a>",400)
             redirect="/companies"
+            if self.path=="/company-users-save":
+                redirect+="?company_id="+quote(get("company_id"))+"&saved_users=1#firma-"+quote(get("company_id"))
             if self.path=="/company-processing":
                 redirect+="?company_id="+quote(get("company_id"))+"&doc_type="+quote(get("doc_type"))+"#firma-"+quote(get("company_id"))
             self.send_response(303);self.send_header("Location",redirect);self.end_headers()
