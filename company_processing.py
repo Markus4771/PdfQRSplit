@@ -1,9 +1,11 @@
 """Per-company defaults, per-document-type overrides, and explicit managed PDF profiles."""
 import json
 
+EXTRAS={"blank_threshold":0.5,"ocr_languages":"deu+eng","ocr_output":"pdf","ocr_rotate":False,"ocr_deskew":False}
+
 FLAGS=("qr_split","remove_separators","remove_blank","crop","ocr","datev_mode")
 DEFAULT={"qr_split":True,"remove_separators":False,"remove_blank":True,
-         "crop":False,"ocr":True,"datev_mode":True}
+         "crop":False,"ocr":True,"datev_mode":True,**EXTRAS}
 NAMES={"qr_split":"QR-Code-Trennung","remove_separators":"QR-Trennblätter entfernen",
        "remove_blank":"Leerseiten entfernen","crop":"Ränder beschneiden",
        "ocr":"OCRmyPDF am Schluss","datev_mode":"DATEV-Sicherheitsmodus"}
@@ -21,9 +23,26 @@ def migrate(con):
 
 def parse(value):
     settings=json.loads(value)
-    if not isinstance(settings,dict) or any(k not in FLAGS or type(v)!=bool for k,v in settings.items()):
+    if not isinstance(settings,dict):
         raise ValueError("Ungültige Verarbeitungseinstellungen")
+    validate(settings,partial=True)
     return settings
+
+def validate(settings,partial=False):
+    allowed=set(DEFAULT)
+    if not isinstance(settings,dict) or any(k not in allowed for k in settings):
+        raise ValueError("Unbekannte Verarbeitungseinstellung")
+    if not partial and set(settings)!=allowed:
+        raise ValueError("Unvollständige Verarbeitungseinstellungen")
+    for key in (*FLAGS,"ocr_rotate","ocr_deskew"):
+        if key in settings and type(settings[key]) is not bool:
+            raise ValueError("Checkbox-Einstellung ungültig: "+key)
+    if "blank_threshold" in settings and (type(settings["blank_threshold"]) not in (int,float) or not 0<=settings["blank_threshold"]<=2):
+        raise ValueError("Leerseiten-Schwellwert muss zwischen 0 und 2 Prozent liegen")
+    if "ocr_languages" in settings and settings["ocr_languages"] not in ("deu","eng","deu+eng"):
+        raise ValueError("Ungültige OCR-Sprache")
+    if "ocr_output" in settings and settings["ocr_output"] not in ("pdf","pdfa"):
+        raise ValueError("Ungültige OCR-Ausgabe")
 
 def effective(con,cid,typ):
     row=con.execute("SELECT settings FROM company_processing WHERE company_id=? AND doc_type=''",(cid,)).fetchone()
@@ -40,8 +59,7 @@ def save(con,cid,typ,settings):
         raise ValueError("Belegart ist für diese Firma nicht aktiv")
     if not con.execute("SELECT 1 FROM companies WHERE id=?",(cid,)).fetchone():
         raise ValueError("Firma existiert nicht")
-    if set(settings)!=set(FLAGS) or any(type(v)!=bool for v in settings.values()):
-        raise ValueError("Ungültige Verarbeitungseinstellungen")
+    validate(settings)
     if settings["datev_mode"] and not settings["qr_split"]:
         raise ValueError("DATEV-Sicherheitsmodus erfordert QR-Trennung")
     if typ=="": 
@@ -76,7 +94,7 @@ def sync_profiles(con,cid,existing_shares):
             raise ValueError("DATEV-Schutz benötigt QR-Trennung")
         link=con.execute("SELECT profile_id FROM company_profile_links WHERE company_id=? AND doc_type=?",(cid,typ)).fetchone()
         values=(int(opts["qr_split"]),int(opts["remove_separators"]),int(opts["remove_blank"]),
-                int(opts["crop"]),int(opts["ocr"]),int(opts["datev_mode"]),arc if opts["datev_mode"] else "")
+                int(opts["crop"]),int(opts["ocr"]),float(opts["blank_threshold"]),opts["ocr_languages"],opts["ocr_output"],int(opts["ocr_rotate"]),int(opts["ocr_deskew"]),int(opts["datev_mode"]),arc if opts["datev_mode"] else "")
         if link:
             pid=link[0]
             if not con.execute("SELECT 1 FROM profiles WHERE id=?",(pid,)).fetchone():
@@ -92,12 +110,12 @@ def sync_profiles(con,cid,existing_shares):
         if spec[0]=="update":
             _,pid,inp,out,v=spec
             con.execute("""UPDATE profiles SET input_share=?,output_share=?,qr_split=?,remove_separators=?,
-               remove_blank=?,crop=?,ocr=?,datev_mode=?,archive_share=? WHERE id=?""",(inp,out,*v,pid))
+               remove_blank=?,crop=?,ocr=?,blank_threshold=?,ocr_languages=?,ocr_output=?,ocr_rotate=?,ocr_deskew=?,datev_mode=?,archive_share=? WHERE id=?""",(inp,out,*v,pid))
         else:
             _,name,inp,out,v,typ=spec
             cur=con.execute("""INSERT INTO profiles
-                (name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,datev_mode,archive_share)
-                VALUES (?,?,?,?,?,?,?,?,?,?)""",(name,inp,out,*v))
+                (name,input_share,output_share,qr_split,remove_separators,remove_blank,crop,ocr,blank_threshold,ocr_languages,ocr_output,ocr_rotate,ocr_deskew,datev_mode,archive_share)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",(name,inp,out,*v))
             con.execute("INSERT INTO company_profile_links(company_id,doc_type,profile_id) VALUES (?,?,?)",(cid,typ,cur.lastrowid))
     return len(specs)
 
@@ -118,6 +136,16 @@ def render(con,cid,types,esc,selected_company=None,selected_type=""):
     out+="<h4>"+esc(selected_type or "Firmenstandard")+"</h4>"
     for flag in FLAGS:
         out+="<label><input type='checkbox' name='"+flag+"'"+(" checked" if settings[flag] else "")+"> "+NAMES[flag]+"</label>"
+    out+="<label>Leerseiten: maximaler Schwarzanteil (%)</label><input type='number' name='blank_threshold' min='0' max='2' step='0.05' value='"+esc(settings["blank_threshold"])+"' required>"
+    out+="<label>OCR-Sprache</label><select name='ocr_languages'>"
+    for code,label in (("deu","Deutsch"),("eng","Englisch"),("deu+eng","Deutsch + Englisch")):
+        out+="<option value='"+code+"'"+(" selected" if settings["ocr_languages"]==code else "")+">"+label+"</option>"
+    out+="</select><label>OCR-Ausgabe</label><select name='ocr_output'>"
+    for code,label in (("pdf","PDF"),("pdfa","PDF/A")):
+        out+="<option value='"+code+"'"+(" selected" if settings["ocr_output"]==code else "")+">"+label+"</option>"
+    out+="</select>"
+    for flag,label in (("ocr_rotate","Seiten automatisch drehen"),("ocr_deskew","Schiefe Seiten begradigen")):
+        out+="<label><input type='checkbox' name='"+flag+"'"+(" checked" if settings[flag] else "")+"> "+label+"</label>"
     out+="<p class='small'>Original-Archiv: automatisch die passende Firmenfreigabe je Belegart bei DATEV-Modus.</p>"
     out+="<button>Einstellungen speichern</button></form>"
     return out
