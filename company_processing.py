@@ -101,15 +101,24 @@ def sync_profiles(con,cid,existing_shares):
             con.execute("INSERT INTO company_profile_links(company_id,doc_type,profile_id) VALUES (?,?,?)",(cid,typ,cur.lastrowid))
     return len(specs)
 
-def render(con,cid,types,esc):
-    out="<h3>PDF-Verarbeitung: Firmenstandard</h3><p class='small'>Änderungen je Belegart sind darunter separat möglich. Nach dem Speichern werden vorhandene automatisch verwaltete Profile aktualisiert.</p>"
+def render(con,cid,types,esc,selected_company=None,selected_type=""):
+    out="<h3>PDF-Verarbeitung</h3><p class='small'>Zuerst Firmenstandard oder Belegart wählen, dann Optionen bearbeiten und speichern. Pro Firma wird nur ein Einstellungsformular angezeigt.</p>"
+    out+="<form method='get' action='/companies'><input type='hidden' name='company_id' value='"+str(cid)+"'><label>Belegart auswählen</label><select name='doc_type'>"
     for typ in ("",*types):
-        settings=effective(con,cid,typ)
-        override=bool(typ)
-        out+="<form method='post' action='/company-processing'><input type='hidden' name='company_id' value='"+str(cid)+"'><input type='hidden' name='doc_type' value='"+esc(typ)+"'>"
-        if override:out+="<h4>"+esc(typ)+" (eigene Einstellungen)</h4>"
-        for flag in FLAGS:
-            out+="<label><input type='checkbox' name='"+flag+"'"+(" checked" if settings[flag] else "")+"> "+NAMES[flag]+"</label>"
-        out+="<p class='small'>Original-Archiv: automatisch die gesonderte Firmenfreigabe für diese Belegart bei aktiviertem DATEV-Modus; sonst keine automatische Archivierung.</p>"
-        out+="<button>"+("Belegart-Einstellungen speichern" if override else "Firmenstandard speichern")+"</button></form>"
+        title="Firmenstandard (alle Belegarten)" if not typ else typ
+        active=selected_company==cid and selected_type==typ
+        out+="<option value='"+esc(typ)+"'"+(" selected" if active else "")+">"+esc(title)+"</option>"
+    out+="</select><button>Optionen bearbeiten</button></form>"
+    if selected_company!=cid:
+        out+="<p class='small'>Belegart auswählen und „Optionen bearbeiten“ klicken.</p>"
+        return out
+    if selected_type not in ("",*types):
+        return out+"<p class='notice'>Die gewählte Belegart ist nicht aktiv.</p>"
+    settings=effective(con,cid,selected_type)
+    out+="<form method='post' action='/company-processing'><input type='hidden' name='company_id' value='"+str(cid)+"'><input type='hidden' name='doc_type' value='"+esc(selected_type)+"'>"
+    out+="<h4>"+esc(selected_type or "Firmenstandard")+"</h4>"
+    for flag in FLAGS:
+        out+="<label><input type='checkbox' name='"+flag+"'"+(" checked" if settings[flag] else "")+"> "+NAMES[flag]+"</label>"
+    out+="<p class='small'>Original-Archiv: automatisch die passende Firmenfreigabe je Belegart bei DATEV-Modus.</p>"
+    out+="<button>Einstellungen speichern</button></form>"
     return out
