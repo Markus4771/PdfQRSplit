@@ -82,18 +82,26 @@ def render(con):
     esc=lambda s:html.escape(str(s),quote=True)
     rows=con.execute("SELECT id,code,display_name FROM companies ORDER BY code").fetchall()
     users=[x[0] for x in con.execute("SELECT username FROM smb_accounts ORDER BY username")]
-    out="<section><h2>Firmen & DATEV-Belegarten</h2><p class='small'>Neue Firmen werden zunächst ohne Samba-Freigaben angelegt. Nach Benutzerzuordnung können die Freigaben ausdrücklich erstellt werden.</p>"
-    out+="<form method='post' action='/company-create'><label>Firmenkennung / DATEV-Mandantennummer (max. 12 Zeichen)</label><input name='code' maxlength='12' required><label>Firmenname</label><input name='display_name' maxlength='100' required><h3>Belegarten</h3>"
+    forms="<section id='firma-neu'><h2>Firmen & DATEV-Belegarten</h2><p class='small'>Neue Firmen werden zunächst ohne Samba-Freigaben angelegt. Nach Benutzerzuordnung können die Freigaben ausdrücklich erstellt werden.</p>"
+    forms+="<form method='post' action='/company-create'><label>Firmenkennung / DATEV-Mandantennummer (max. 12 Zeichen)</label><input name='code' maxlength='12' required><label>Firmenname</label><input name='display_name' maxlength='100' required><h3>Belegarten</h3>"
     for i,t in enumerate(TYPES):
-        out+=f"<label><input type='checkbox' name='type' value='{t}'"+(" checked" if i<2 else "")+"> "+t+"</label>"
-    out+="<button>Firma anlegen</button></form></section>"
-    out+="<section><h2>SMB-Benutzer</h2><p class='small'>Konten werden separat von der GUI-Anmeldung verwaltet. Bestehende Konten werden nicht überschrieben.</p><form method='post' action='/company-user-create'><label>Neuer SMB-Benutzer</label><input name='username' required><label>Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><button>Benutzer anlegen</button></form>"
-    out+="<form method='post' action='/company-user-register'><h3>Vorhandenen Samba-Benutzer übernehmen</h3><label>SMB-Benutzer</label><input name='username' required><label>Bestehendes SMB-Passwort zur Prüfung</label><input type='password' name='password' required><button>Vorhandenen Benutzer hinzufügen</button></form>"
-    out+="<p>Verfügbare Benutzer: "+(esc(", ".join(users)) if users else "Noch keine")+"</p></section>"
+        forms+=f"<label><input type='checkbox' name='type' value='{t}'"+(" checked" if i<2 else "")+"> "+t+"</label>"
+    forms+="<button>Firma anlegen</button></form></section>"
+    forms+="<section><h2>SMB-Benutzer</h2><p class='small'>Konten werden separat von der GUI-Anmeldung verwaltet. Bestehende Konten werden nicht überschrieben.</p><form method='post' action='/company-user-create'><label>Neuer SMB-Benutzer</label><input name='username' required><label>Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><button>Benutzer anlegen</button></form>"
+    forms+="<form method='post' action='/company-user-register'><h3>Vorhandenen Samba-Benutzer übernehmen</h3><label>SMB-Benutzer</label><input name='username' required><label>Bestehendes SMB-Passwort zur Prüfung</label><input type='password' name='password' required><button>Vorhandenen Benutzer hinzufügen</button></form>"
+    forms+="<p>Verfügbare Benutzer: "+(esc(", ".join(users)) if users else "Noch keine")+"</p></section>"
+    out="<section><h2>Vorhandene Firmen ("+str(len(rows))+")</h2>"
+    if rows:
+        out+="<p>Diese Firmen sind gespeichert. Firma anklicken, um Benutzerberechtigungen zu bearbeiten.</p>"
+        for cid,code,title in rows:
+            out+="<p><a href='#firma-"+str(cid)+"'><b>"+esc(code)+"</b> – "+esc(title)+"</a></p>"
+    else:
+        out+="<p>Noch keine Firmen vorhanden.</p>"
+    out+="<p><a href='#firma-neu'>Neue Firma anlegen</a></p></section>"
     for cid,code,title in rows:
         types=[x[0] for x in con.execute("SELECT doc_type FROM company_types WHERE company_id=?",(cid,))]
         acl=con.execute("SELECT username,role FROM company_access WHERE company_id=? ORDER BY username",(cid,)).fetchall()
-        out+=f"<section><h2>{esc(code)} – {esc(title)}</h2><p>Belegarten: {esc(', '.join(types))}</p>"
+        out+=f"<section id='firma-{cid}'><h2>{esc(code)} – {esc(title)}</h2><p>Belegarten: {esc(', '.join(types))}</p>"
         out+="<form method='post' action='/company-types'><input type='hidden' name='company_id' value='"+str(cid)+"'><h3>Belegarten bearbeiten</h3>"
         for t in TYPES:
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
@@ -108,4 +116,4 @@ def render(con):
             out+="</select><button>Zugriff speichern</button></form>"
         out+="<form method='post' action='/company-provision'><input type='hidden' name='company_id' value='"+str(cid)+"'><button>Fehlende Samba-Freigaben anlegen / Rechte synchronisieren</button></form>"
         out+="<p class='small'>Schema: "+esc(code)+"-Belegart-{Eingang,Archiv,Ausgang,LOG}. DATEV-Belegtransfer nur auf Ausgang konfigurieren. Bereits bestehende fremde Freigaben werden nicht übernommen.</p></section>"
-    return out
+    return out+forms
