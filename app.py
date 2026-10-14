@@ -17,6 +17,7 @@ from urllib.parse import parse_qs
 from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
 import company_admin
+import company_processing
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -204,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · <a href='/jobs'>Aufträge & Fehler</a></nav></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -291,6 +292,9 @@ class Handler(BaseHTTPRequestHandler):
                             raise ValueError("Firma wird noch in Verarbeitungsprofilen verwendet")
                         c.execute("DELETE FROM company_access WHERE company_id=?",(ident,))
                         c.execute("DELETE FROM company_types WHERE company_id=?",(ident,))
+                        if c.execute("SELECT 1 FROM company_profile_links WHERE company_id=?",(ident,)).fetchone():
+                            raise ValueError("Automatisch verwaltete Profile sind noch vorhanden")
+                        c.execute("DELETE FROM company_processing WHERE company_id=?",(ident,))
                         c.execute("DELETE FROM companies WHERE id=?",(ident,))
                     elif self.path=="/company-user-delete":
                         if get("confirm")!="yes":raise ValueError("Löschen muss ausdrücklich bestätigt werden")
@@ -303,10 +307,20 @@ class Handler(BaseHTTPRequestHandler):
                         if any(user in x.get("user","").split() for x in smb.get("shares",[])):
                             raise ValueError("Benutzer wird noch in Samba-Freigaben verwendet; Zugang bleibt zur Sicherheit erhalten")
                         c.execute("DELETE FROM smb_accounts WHERE username=?",(user,))
+                    elif self.path=="/company-processing":
+                        ident=int(get("company_id"))
+                        typ=get("doc_type")
+                        selected={k:k in data for k in company_processing.FLAGS}
+                        company_processing.save(c,ident,typ,selected)
+                        linked=c.execute("SELECT 1 FROM company_profile_links WHERE company_id=?",(ident,)).fetchone()
+                        if linked:
+                            active=set(shares())
+                            company_processing.sync_profiles(c,ident,active)
                     elif self.path=="/company-provision":
                         specs=company_admin.share_specs(c,int(get("company_id")))
                         response=samba_call({"action":"company-sync-shares","specs":specs})
                         if not response.get("ok"):raise ValueError(response.get("error","Samba-Freigaben konnten nicht angelegt werden"))
+                        company_processing.sync_profiles(c,int(get("company_id")),set(shares()))
                     c.commit()
             except (ValueError,sqlite3.Error) as exc:
                 return self.page("<h1>Firmenverwaltung: Fehler</h1><p>"+html.escape(str(exc))+"</p><a href='/companies'>Zurück</a>",400)
