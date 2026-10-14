@@ -26,8 +26,18 @@ def migrate(con):
        company_id INTEGER NOT NULL, username TEXT NOT NULL, role TEXT NOT NULL,
        PRIMARY KEY(company_id,username),
        FOREIGN KEY(company_id) REFERENCES companies(id))""")
+    if "email" not in {r[1] for r in con.execute("PRAGMA table_info(smb_accounts)")}:
+        con.execute("ALTER TABLE smb_accounts ADD COLUMN email TEXT NOT NULL DEFAULT ''")
     company_processing.migrate(con)
     con.commit()
+
+def save_email(con,username,email):
+    email=email.strip()
+    if not USER.fullmatch(username) or not con.execute("SELECT 1 FROM smb_accounts WHERE username=?",(username,)).fetchone():
+        raise ValueError("SMB-Benutzer unbekannt")
+    if email and (len(email)>254 or email.count("@")!=1 or any(ch in email for ch in " ,;\\r\\n\\t") or "." not in email.split("@")[-1]):
+        raise ValueError("Ungültige E-Mail-Adresse")
+    con.execute("UPDATE smb_accounts SET email=? WHERE username=?",(email,username))
 
 def share_name(code,doc_type,function):
     if not COMPANY.fullmatch(code) or doc_type not in TYPES or function not in FUNCTIONS:
@@ -137,6 +147,9 @@ def render(con,selected_company=None,selected_type="",share_data=None):
         forms+="<h3>Benutzer aus Verwaltung entfernen</h3><p class='small'>Nur möglich, wenn der Benutzer keiner Firma und keiner verwalteten Freigabe mehr zugeordnet ist. Das Linux-/Samba-Konto bleibt erhalten.</p>"
         for u in users:
             forms+="<form method='post' action='/company-user-delete'><input type='hidden' name='username' value='"+esc(u)+"'><label><input type='checkbox' name='confirm' value='yes' required> "+esc(u)+" aus der Firmenverwaltung entfernen</label><button>Benutzer entfernen</button></form>"
+    forms+="<h3>E-Mail-Adressen der Firmenbenutzer</h3><p class='small'>Warnungen werden an die E-Mail-Adressen der zugeordneten Benutzer versendet.</p>"
+    for username,email in con.execute("SELECT username,email FROM smb_accounts ORDER BY username"):
+        forms+="<form method='post' action='/company-user-email'><input type='hidden' name='username' value='"+esc(username)+"'><label>"+esc(username)+" – E-Mail-Adresse</label><input name='email' type='email' maxlength='254' value='"+esc(email)+"' placeholder='benutzer@firma.de'><button>E-Mail speichern</button></form>"
     forms+="<p>Verfügbare Benutzer: "+(esc(", ".join(users)) if users else "Noch keine")+"</p></section>"
     out="<section><h2>Vorhandene Firmen ("+str(len(rows))+")</h2>"
     if rows:
