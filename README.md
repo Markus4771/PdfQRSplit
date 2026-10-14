@@ -1,5 +1,59 @@
 # PdfQRSplit – QR Scan Manager
 
+**Projektstand: Entwicklung und Integrationstest. Noch nicht für den ungeprüften Produktivbetrieb freigegeben.**
+
+PdfQRSplit verarbeitet Scans unter Debian automatisch nach **Firma und DATEV-Belegart**: QR-Code-Trennung, optionale Leerseiten-/Randbearbeitung und OCR, geschützte DATEV-Ausgangsfreigaben, Originalarchiv und LOG. Die Firmenverwaltung erstellt und pflegt Samba-Freigaben, Benutzerzuordnungen und automatisch verwaltete Verarbeitungsprofile.
+
+## Einstieg
+
+| Bereich | Adresse / Dokument |
+|---|---|
+| Startübersicht | `http://SERVER-IP:8086/` |
+| Firmen, Belegarten, Benutzer und E-Mail-Adressen | `/companies` |
+| PDF-Prüffälle und Korrekturentwürfe | `/review` |
+| DATEV-Dubletten-Prüfbereich | `/datev-review` |
+| Aufträge und Fehler | `/jobs` |
+| SMTP-Benachrichtigungen | `/notifications` |
+| Installation und Update | [INSTALLATION.md](INSTALLATION.md) |
+| Bedienung und Benutzerrechte | [BEDIENUNGSANLEITUNG.md](BEDIENUNGSANLEITUNG.md) |
+| Offene Arbeiten | [BACKLOG.md](BACKLOG.md) |
+| Entwicklungsübergabe | [NEUER-CHAT.md](NEUER-CHAT.md) |
+
+## Installation und Update
+
+Für eine Neuinstallation siehe [Installationsanleitung](INSTALLATION.md). Bestehende Installationen nach vorherigem PBS-/Dateibackup aktualisieren:
+
+```bash
+cd /root/PdfQRSplit
+git pull --ff-only
+bash install.sh
+```
+
+Nach dem Update Dienste und Tests kontrollieren. Die bisherige lokale Testinstanz läuft unter `http://192.168.0.55:8086/`; andere Server verwenden ihre eigene Adresse.
+
+## Firmenbenutzer und Benachrichtigungen
+
+Administratoren erfassen bei einem SMB-Benutzer eine **E-Mail-Adresse** und vergeben zusätzlich ein **eigenes Web-Passwort** (getrennt vom Samba-Passwort). Benutzer werden über Firmen-Checkboxen mit entsprechender Rolle zugeordnet.
+
+- Firmenbenutzer können nur **lesend** ihre eigenen PDF-Prüffälle, freigegebenen Original-Vorschauen und zugehörigen DATEV-Prüfbereich einsehen.
+- Firmenkonfiguration, PDF-Korrekturen und Prüfentscheidungen bleiben dem Administrator vorbehalten.
+- Mit aktivierter SMTP-Konfiguration werden erkannte kritische Fehler und ausdrückliche Verarbeitungswarnungen an Benutzer mit E-Mail-Adresse gesendet, die der **betroffenen Firma** zugeordnet sind. Keine PDF-Anlagen in der E-Mail; temporäre Wiederholungsversuche lösen keine sofortige Meldung aus.
+- Für Web-Anmeldungen wird HTTP Basic verwendet. **Außerhalb eines vertrauenswürdigen LANs ist HTTPS mit Zugangsbeschränkung erforderlich.**
+
+## Prüfablauf und Sicherheitsgrenzen
+
+Unter `/review` werden dokumentierte PDF-Verarbeitungsprobleme firma-/belegartbezogen angezeigt. Administratoren können Notizen, Prüfstatus und einen getrennten Korrekturentwurf (Seitenauswahl und Drehung) verwalten. DATEV-Dublettenverdacht kann geprüft und die Entscheidung protokolliert werden. **Keine dieser Verwaltungsaktionen überträgt automatisch erneut an DATEV.**
+
+Der Eintrag im DATEV-Ausgang bedeutet **lokal bereitgestellt**, nicht „von DATEV erfolgreich übernommen“. Die tatsächliche Überwachung des Windows-DATEV-Belegtransfers ist noch offen und in [BACKLOG.md](BACKLOG.md) erfasst.
+
+## Technische Grenzen und Tests
+
+Die Fehlerkategorien basieren teilweise auf Fehlermeldungen; eine verlässliche semantische Rechnungserkennung und OCR-Qualitätsbewertung sind noch nicht vorhanden. Für den Produktivbetrieb müssen mindestens Benutzer-/Firmenisolation, Samba-Rechte, Testscan, Originalarchiv, LOG, Dublettenschutz, SMTP-Versand und der tatsächliche Windows-Belegtransfer überprüft werden.
+
+---
+
+## Entwicklungsverlauf und technische Details (historische Dokumentation)
+
 Webbasierter, headless PDF-Scanprozessor für Debian. **Status: Projektgrundlage, noch nicht produktiv einsetzbar.**
 
 ## Vereinbarte Funktionen
