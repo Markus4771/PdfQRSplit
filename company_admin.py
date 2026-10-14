@@ -89,6 +89,10 @@ def render(con):
     forms+="<button>Firma anlegen</button></form></section>"
     forms+="<section><h2>SMB-Benutzer</h2><p class='small'>Konten werden separat von der GUI-Anmeldung verwaltet. Bestehende Konten werden nicht überschrieben.</p><form method='post' action='/company-user-create'><label>Neuer SMB-Benutzer</label><input name='username' required><label>Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><button>Benutzer anlegen</button></form>"
     forms+="<form method='post' action='/company-user-register'><h3>Vorhandenen Samba-Benutzer übernehmen</h3><label>SMB-Benutzer</label><input name='username' required><label>Bestehendes SMB-Passwort zur Prüfung</label><input type='password' name='password' required><button>Vorhandenen Benutzer hinzufügen</button></form>"
+    if users:
+        forms+="<h3>Benutzer aus Verwaltung entfernen</h3><p class='small'>Nur möglich, wenn der Benutzer keiner Firma und keiner verwalteten Freigabe mehr zugeordnet ist. Das Linux-/Samba-Konto bleibt erhalten.</p>"
+        for u in users:
+            forms+="<form method='post' action='/company-user-delete'><input type='hidden' name='username' value='"+esc(u)+"'><label><input type='checkbox' name='confirm' value='yes' required> "+esc(u)+" aus der Firmenverwaltung entfernen</label><button>Benutzer entfernen</button></form>"
     forms+="<p>Verfügbare Benutzer: "+(esc(", ".join(users)) if users else "Noch keine")+"</p></section>"
     out="<section><h2>Vorhandene Firmen ("+str(len(rows))+")</h2>"
     if rows:
@@ -106,14 +110,16 @@ def render(con):
         for t in TYPES:
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
         out+="<button>Belegarten speichern</button></form>"
-        out+="<h3>Benutzerberechtigungen</h3><p>"+(esc(", ".join(f"{u}: {r}" for u,r in acl)) if acl else "Keine Zuordnungen")+"</p>"
-        if users:
-            out+="<form method='post' action='/company-access'><input type='hidden' name='company_id' value='"+str(cid)+"'><label>SMB-Benutzer</label><select name='username'>"
-            out+="".join("<option value='"+esc(u)+"'>"+esc(u)+"</option>" for u in users)
-            out+="</select><label>Zugriffsrecht</label><select name='role'>"
-            for role,caption in (("none","Kein Zugriff"),("read","Nur lesen"),("input","Nur Eingang schreiben"),("write","Eingänge lesen/schreiben"),("admin","Eingänge schreiben; alle Ordner lesen")):
-                out+="<option value='"+role+"'>"+caption+"</option>"
-            out+="</select><button>Zugriff speichern</button></form>"
+        out+="<h3>Benutzer der Firma zuweisen</h3><p class='small'>Mehrere Benutzer per Checkbox auswählen. Eine Berechtigungsstufe gilt für die neu ausgewählten Benutzer; vorhandene Rollen bleiben bei bereits zugewiesenen Benutzern erhalten.</p>"
+        out+="<p>Aktuelle Zuordnung: "+(esc(", ".join(f"{u}: {r}" for u,r in acl)) if acl else "Keine Benutzer zugewiesen")+"</p>"
+        out+="<form method='post' action='/company-users-save'><input type='hidden' name='company_id' value='"+str(cid)+"'>"
+        for u in users:
+            out+="<label><input type='checkbox' name='username' value='"+esc(u)+"'"+(" checked" if u in dict(acl) else "")+"> "+esc(u)+(" ("+esc(dict(acl)[u])+")" if u in dict(acl) else "")+"</label>"
+        out+="<label>Berechtigung für neu zugewiesene Benutzer</label><select name='role'>"
+        for role,caption in (("read","Nur lesen"),("input","Nur Eingang schreiben"),("write","Eingänge lesen/schreiben"),("admin","Administrator")):
+            out+="<option value='"+role+"'>"+caption+"</option>"
+        out+="</select><button>Benutzerzuordnung speichern</button></form>"
+        out+="<form method='post' action='/company-delete'><input type='hidden' name='company_id' value='"+str(cid)+"'><label><input type='checkbox' name='confirm' value='yes' required> Firma endgültig aus der Verwaltung löschen (nur ohne Samba-Freigaben/Profile)</label><button>Firma löschen</button></form>"
         out+="<form method='post' action='/company-provision'><input type='hidden' name='company_id' value='"+str(cid)+"'><button>Fehlende Samba-Freigaben anlegen / Rechte synchronisieren</button></form>"
         out+="<p class='small'>Schema: "+esc(code)+"-Belegart-{Eingang,Archiv,Ausgang,LOG}. DATEV-Belegtransfer nur auf Ausgang konfigurieren. Bereits bestehende fremde Freigaben werden nicht übernommen.</p></section>"
     return out+forms
