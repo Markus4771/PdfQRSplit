@@ -208,3 +208,7 @@ Die bisherige lange Profil- und manuelle Samba-Maske wird auf der QR Scan Manage
 ## 14.10.2026 Installer-Testfehler behoben
 
 `test_single_document_type_editor` schlug fehl, weil der float-Wert `blank_threshold` beim HTML-Aufbau ohne String-Konvertierung verkettet wurde. In `company_processing.render` nach `str(...)` korrigiert. GitHub aktualisiert; Installer erneut ausführen.
+
+## 14.10.2026: SMB-Benutzer-Checkboxen
+
+`company-users-save` verwendet jetzt `company_admin.save_user_selection`: validiert die markierten SMB-Benutzer, übernimmt die ausgewählte Rolle für alle markierten Personen und entfernt nicht mehr markierte Zuordnungen. Leere Auswahl wird mit einer konkreten Fehlermeldung statt stiller Löschung abgewiesen. Nach erfolgreichem Speichern erfolgt Rücksprung direkt zur betreffenden Firma. Im Formular ist die Rollenwirkung erläutert. Regressionstest `test_checkbox_selection_persists_and_updates` ergänzt. DB und Samba-Freigaben werden durch GitHub-Push nicht direkt verändert; Debian-Installer und UI prüfen.
