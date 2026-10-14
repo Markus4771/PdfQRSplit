@@ -65,6 +65,25 @@ def change_access(con,company_id,username,role):
         con.execute("""INSERT INTO company_access(company_id,username,role) VALUES (?,?,?)
             ON CONFLICT(company_id,username) DO UPDATE SET role=excluded.role""",(company_id,username,role))
 
+def save_user_selection(con,company_id,users,role):
+    """Save one company's complete checkbox selection as a single transaction."""
+    if role not in ("read","input","write","admin"):
+        raise ValueError("Ungültige Berechtigung")
+    if not con.execute("SELECT 1 FROM companies WHERE id=?",(company_id,)).fetchone():
+        raise ValueError("Firma existiert nicht")
+    if len(users)!=len(set(users)):
+        raise ValueError("Benutzer mehrfach ausgewählt")
+    registered={row[0] for row in con.execute("SELECT username FROM smb_accounts")}
+    if any(user not in registered for user in users):
+        raise ValueError("Bitte SMB-Benutzer zuerst unter 'SMB-Benutzer' anlegen oder übernehmen")
+    if not users:
+        raise ValueError("Kein SMB-Benutzer ausgewählt – bitte mindestens eine Checkbox markieren")
+    for user in users:
+        change_access(con,company_id,user,role)
+    marks=",".join("?" for _ in users)
+    con.execute("DELETE FROM company_access WHERE company_id=? AND username NOT IN ("+marks+")",(company_id,*users))
+    return len(users)
+
 def share_specs(con,company_id):
     company=con.execute("SELECT code FROM companies WHERE id=?",(company_id,)).fetchone()
     if not company:raise ValueError("Firma fehlt")
@@ -113,15 +132,15 @@ def render(con,selected_company=None,selected_type=""):
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
         out+="<button>Belegarten speichern</button></form>"
         out+=company_processing.render(con,cid,types,esc,selected_company,selected_type)
-        out+="<h3>Benutzer der Firma zuweisen</h3><p class='small'>Mehrere Benutzer per Checkbox auswählen. Eine Berechtigungsstufe gilt für die neu ausgewählten Benutzer; vorhandene Rollen bleiben bei bereits zugewiesenen Benutzern erhalten.</p>"
+        out+="<h3>Benutzer der Firma zuweisen</h3><p class='small'>Mehrere Benutzer per Checkbox auswählen. Die gewählte Berechtigung gilt nach dem Speichern für alle markierten Benutzer dieser Firma.</p>"
         out+="<p>Aktuelle Zuordnung: "+(esc(", ".join(f"{u}: {r}" for u,r in acl)) if acl else "Keine Benutzer zugewiesen")+"</p>"
         out+="<form method='post' action='/company-users-save'><input type='hidden' name='company_id' value='"+str(cid)+"'>"
         for u in users:
             out+="<label><input type='checkbox' name='username' value='"+esc(u)+"'"+(" checked" if u in dict(acl) else "")+"> "+esc(u)+(" ("+esc(dict(acl)[u])+")" if u in dict(acl) else "")+"</label>"
-        out+="<label>Berechtigung für neu zugewiesene Benutzer</label><select name='role'>"
+        out+="<label>Berechtigung der ausgewählten Benutzer</label><select name='role'>"
         for role,caption in (("read","Nur lesen"),("input","Nur Eingang schreiben"),("write","Eingänge lesen/schreiben"),("admin","Administrator")):
-            out+="<option value='"+role+"'>"+caption+"</option>"
-        out+="</select><button>Benutzerzuordnung speichern</button></form>"
+            out+="<option value='"+role+"'"+(" selected" if acl and all(r==role for _,r in acl) else "")+">"+caption+"</option>"
+        out+="</select><p class='small'>Wichtig: Checkbox markieren und anschließend Benutzerzuordnung speichern. Nur Auswählen speichert noch nichts.</p><button>Benutzerzuordnung speichern</button></form>"
         out+="<form method='post' action='/company-delete'><input type='hidden' name='company_id' value='"+str(cid)+"'><label><input type='checkbox' name='confirm' value='yes' required> Firma endgültig aus der Verwaltung löschen (nur ohne Samba-Freigaben/Profile)</label><button>Firma löschen</button></form>"
         out+="<form method='post' action='/company-provision'><input type='hidden' name='company_id' value='"+str(cid)+"'><button>Fehlende Samba-Freigaben anlegen / Rechte synchronisieren</button></form>"
         out+="<p class='small'>Schema: "+esc(code)+"-Belegart-{Eingang,Archiv,Ausgang,LOG}. DATEV-Belegtransfer nur auf Ausgang konfigurieren. Bereits bestehende fremde Freigaben werden nicht übernommen.</p></section>"
