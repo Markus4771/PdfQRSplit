@@ -217,8 +217,9 @@ def once(con,profile,shares,seen):
                     logging.exception("Processing failed permanently: %s",path)
             con.commit()
             try:
-                if con.execute("SELECT status FROM jobs WHERE signature=?",(digest,)).fetchone()[0] in ("retry","error"):
-                    write_job(con,ident,shares,digest,"error",path,{"message":str(ex)})
+                final=con.execute("SELECT status,details FROM jobs WHERE signature=?",(digest,)).fetchone()
+                if final and final[0] in ("retry","error"):
+                    write_job(con,ident,shares,digest,final[0],path,{"message":final[1] or ""})
             except Exception as log_error:
                 logging.error("Company LOG export failed: %s",log_error)
         except (OSError,sqlite3.Error,ValueError) as exc:
