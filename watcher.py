@@ -135,7 +135,7 @@ def once(con,profile,shares,seen):
                         current=item[1:-1]
                     elif current==out_share and "=" in item:
                         k,v=(part.strip() for part in item.split("=",1))
-                        if k=="comment" and v=="QRSCAN-DATEV-READONLY":
+                        if k=="comment" and v in ("QRSCAN-DATEV-READONLY","QRSCAN-COMPANY-MANAGED"):
                             protected=True
                         if k=="read only" and v.lower()=="yes":
                             readonly=True
