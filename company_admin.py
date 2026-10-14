@@ -31,12 +31,16 @@ def migrate(con):
     company_processing.migrate(con)
     con.commit()
 
-def save_email(con,username,email):
+def validate_email(email):
     email=email.strip()
-    if not USER.fullmatch(username) or not con.execute("SELECT 1 FROM smb_accounts WHERE username=?",(username,)).fetchone():
-        raise ValueError("SMB-Benutzer unbekannt")
     if email and (len(email)>254 or email.count("@")!=1 or any(ch in email for ch in (" ",",",";",chr(13),chr(10),chr(9))) or "." not in email.split("@")[-1]):
         raise ValueError("Ungültige E-Mail-Adresse")
+    return email
+
+def save_email(con,username,email):
+    email=validate_email(email)
+    if not USER.fullmatch(username) or not con.execute("SELECT 1 FROM smb_accounts WHERE username=?",(username,)).fetchone():
+        raise ValueError("SMB-Benutzer unbekannt")
     con.execute("UPDATE smb_accounts SET email=? WHERE username=?",(email,username))
 
 def share_name(code,doc_type,function):
