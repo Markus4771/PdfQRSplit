@@ -48,6 +48,14 @@ class TestCompanyAdmin(unittest.TestCase):
         html=render_company_status(self.db,cid,"10001",["Kasse"],[("anna","admin")],{"ok":False},str)
         self.assertIn("Nicht pruefbar",html)
 
+    def test_email_for_company_user(self):
+        from company_admin import save_email
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES ('anna')")
+        save_email(self.db,"anna","anna@example.org")
+        self.assertEqual(self.db.execute("SELECT email FROM smb_accounts WHERE username='anna'").fetchone()[0],"anna@example.org")
+        with self.assertRaises(ValueError):save_email(self.db,"anna","bad-address")
+        with self.assertRaises(ValueError):save_email(self.db,"unknown","other@example.org")
+
     def test_invalid_name_and_types(self):
         with self.assertRaises(ValueError):
             save_company(self.db,"unzulässig!","Bad",["Kasse"])
