@@ -1,0 +1,55 @@
+import sqlite3
+import unittest
+
+from company_admin import TYPES, FUNCTIONS, migrate, save_company, change_access, share_specs, share_name
+
+class TestCompanyAdmin(unittest.TestCase):
+    def setUp(self):
+        self.db=sqlite3.connect(":memory:")
+        migrate(self.db)
+
+    def tearDown(self):
+        self.db.close()
+
+    def test_schema_and_five_types(self):
+        cid=save_company(self.db,"10001","Beispiel GmbH",TYPES)
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES (?)",("Markus",))
+        change_access(self.db,cid,"Markus","admin")
+        specs=share_specs(self.db,cid)
+        self.assertEqual(len(specs),20)
+        self.assertEqual(len({x["name"] for x in specs}),20)
+        for x in specs:
+            self.assertEqual(x["protected"],not x["name"].endswith("-Eingang"))
+            if x["protected"]:self.assertEqual(x["writers"],[])
+
+    def test_invalid_name_and_types(self):
+        with self.assertRaises(ValueError):
+            save_company(self.db,"unzulässig!","Bad",["Kasse"])
+        with self.assertRaises(ValueError):
+            share_name("10001","Invalid","Eingang")
+        with self.assertRaises(ValueError):
+            share_name("10001","Rechnungseingang","Invalid")
+
+    def test_firm_isolation(self):
+        a=save_company(self.db,"10001","A",["Rechnungseingang"])
+        b=save_company(self.db,"10002","B",["Kasse"])
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES (?)",("Markus",))
+        change_access(self.db,a,"Markus","admin")
+        with self.assertRaises(ValueError):
+            share_specs(self.db,b)
+        self.assertEqual(len(share_specs(self.db,a)),4)
+
+    def test_access_changes(self):
+        cid=save_company(self.db,"10001","A",["Kasse"])
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES (?)",("Markus",))
+        change_access(self.db,cid,"Markus","read")
+        self.assertEqual(share_specs(self.db,cid)[0]["writers"],[])
+        change_access(self.db,cid,"Markus","input")
+        specs=share_specs(self.db,cid)
+        self.assertEqual(sum(bool(s["writers"]) for s in specs),1)
+        change_access(self.db,cid,"Markus","none")
+        with self.assertRaises(ValueError):
+            share_specs(self.db,cid)
+
+if __name__=="__main__":
+    unittest.main()
