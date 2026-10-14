@@ -317,7 +317,7 @@ class Handler(BaseHTTPRequestHandler):
             for digest,source,match,path in entries:
                 present=bool(path and Path(path).is_file())
                 lines.append("<p><b>"+html.escape(digest[:16])+"</b> | Quelle: "+html.escape(source or "")+
-                             " | Vergleich: "+html.escape((match or "")[:16])+
+                             " | Vergleich: "+("Geschützt" if actor[0]!="admin" else html.escape((match or "")[:16]))+
                              " | "+("Prüfdatei vorhanden: " if present else "Prüfdatei fehlt: ")+html.escape(path or "")+"</p>")
             return self.page("<header><h1>DATEV-Prüfbereich</h1><a href='/jobs'>Aufträge & Fehler</a></header><section>"+
                 ("".join(lines) or "Keine Verdachtsfälle")+"</section>")
