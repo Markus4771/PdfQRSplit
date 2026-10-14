@@ -151,6 +151,22 @@ def render(con,selected_company=None,selected_type="",share_data=None):
         acl=con.execute("SELECT username,role FROM company_access WHERE company_id=? ORDER BY username",(cid,)).fetchall()
         out+=f"<section id='firma-{cid}'><h2>{esc(code)} – {esc(title)}</h2><p>Belegarten: {esc(', '.join(types))}</p>"
         out+=render_company_status(con,cid,code,types,acl,share_data,esc)
+        try:
+            from company_monitor import summary
+            counts,problems=summary(con,cid)
+            out+="<div><h3>PDF-Probleme und Verarbeitungsstatus</h3>"
+            out+="<p>Erfolgreich: "+str(counts["done"])+" · Fehler: "+str(counts["error"]+counts["interrupted"])+" · Wiederholungen: "+str(counts["retry"])+" · Warnungen: "+str(counts["warning"])+"</p>"
+            if problems:
+                out+="<table style='width:100%;text-align:left'><tr><th>Zeit / Belegart</th><th>Datei</th><th>Problem</th></tr>"
+                for item in problems:
+                    out+="<tr><td>"+esc(item["time"])+" "+esc(item["type"])+"</td><td>"+esc(item["file"])+"</td><td>"+esc(item["severity"])+" – "+esc(item["category"])+"<p class='small'>"+esc(item["message"])+"</p></td></tr>"
+                out+="</table>"
+            else:
+                out+="<p class='small'>Keine gemeldeten Fehler oder Warnungen in den letzten 250 Aufträgen dieser Firma.</p>"
+            out+="<p class='small'>Die Zahlen beziehen sich auf höchstens 250 letzte Aufträge; Verdachtsfälle wie inhaltliche Rechnungsdubletten oder geringe OCR-Erkennungsqualität werden noch nicht automatisch analysiert. <a href='/jobs'>Alle Aufträge ansehen</a>.</p></div>"
+        except Exception:
+            out+="<p class='notice'>PDF-Auftragsstatus momentan nicht auswertbar.</p>"
+
         out+="<form method='post' action='/company-types'><input type='hidden' name='company_id' value='"+str(cid)+"'><h3>Belegarten bearbeiten</h3>"
         for t in TYPES:
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
