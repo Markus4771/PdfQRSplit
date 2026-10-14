@@ -1,5 +1,6 @@
 """Company-user web credentials and strictly scoped read access."""
 import base64
+import binascii
 import hashlib
 import hmac
 import os
@@ -31,7 +32,7 @@ def authenticate(con,authorization):
         if not hmac.compare_digest(digest,bytes.fromhex(record[1])):return None
         allowed={r[0] for r in con.execute("SELECT company_id FROM company_access WHERE username=? AND role IN ('read','input','write','admin')",(username,))}
         return (username,allowed) if allowed else None
-    except (ValueError,UnicodeError,OverflowError):return None
+    except (ValueError,UnicodeError,OverflowError,binascii.Error):return None
 
 def owns_job(con,signature,companies):
     if not companies:return False
