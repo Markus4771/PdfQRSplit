@@ -17,6 +17,7 @@ from pathlib import Path
 from worker import run
 from original_archive import prepare_archive,remove_archived_source
 from profile_logs import write_job
+from notifications import notify
 from retry_policy import MAX_ATTEMPTS, should_retry, next_retry
 from output_naming import output_stem
 from jobs_ui import cleanup_jobs
@@ -216,6 +217,12 @@ def once(con,profile,shares,seen):
                     con.execute("UPDATE jobs SET status='error',details=?,next_retry=NULL,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(reason[:1000],digest))
                     logging.exception("Processing failed permanently: %s",path)
             con.commit()
+            try:
+                event=con.execute("SELECT status,details FROM jobs WHERE signature=?",(digest,)).fetchone()
+                if event:
+                    notify(con,digest,ident,event[0],event[1],path)
+            except Exception as mail_error:
+                logging.error("SMTP-Benachrichtigung fehlgeschlagen: %s",type(mail_error).__name__)
             try:
                 final=con.execute("SELECT status,details FROM jobs WHERE signature=?",(digest,)).fetchone()
                 if final and final[0] in ("retry","error"):
