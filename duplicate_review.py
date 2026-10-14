@@ -12,13 +12,13 @@ def ensure(con):
         note TEXT NOT NULL, decided_at TEXT DEFAULT CURRENT_TIMESTAMP)""")
 
 def cases(con,source):
-    ensure(con)
+    exists=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='duplicate_decisions'").fetchone()
+    join="LEFT JOIN duplicate_decisions d ON d.digest=s.digest" if exists else "LEFT JOIN (SELECT NULL AS digest, NULL AS decision, NULL AS note) d ON 1=0"
     return con.execute("""SELECT s.digest,s.matching_digest,s.review_path,
           COALESCE(d.decision,''),COALESCE(d.note,''),
           COALESCE(i.filename,'')
           FROM datev_suspects s
-          LEFT JOIN duplicate_decisions d ON d.digest=s.digest
-          LEFT JOIN datev_invoices i ON i.digest=s.matching_digest
+          """+join+""" LEFT JOIN datev_invoices i ON i.digest=s.matching_digest
           WHERE s.source=? ORDER BY s.created_at DESC""",(source,)).fetchall()
 
 def decision(con,digest,choice,note):
