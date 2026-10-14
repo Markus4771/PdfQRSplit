@@ -204,7 +204,7 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · <a href='/jobs'>Aufträge & Fehler</a></nav></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -256,6 +256,53 @@ class Handler(BaseHTTPRequestHandler):
                         c.execute("INSERT OR IGNORE INTO smb_accounts(username) VALUES (?)",(user,))
                     elif self.path=="/company-access":
                         company_admin.change_access(c,int(get("company_id")),get("username"),get("role"))
+                    elif self.path=="/company-users-save":
+                        ident=int(get("company_id"))
+                        chosen=data.get("username",[])
+                        if len(chosen)!=len(set(chosen)):raise ValueError("Benutzerauswahl enthält Duplikate")
+                        if get("role") not in ("read","input","write","admin"):raise ValueError("Ungültige Berechtigung")
+                        current=dict(c.execute("SELECT username,role FROM company_access WHERE company_id=?",(ident,)))
+                        available={r[0] for r in c.execute("SELECT username FROM smb_accounts")}
+                        if not c.execute("SELECT 1 FROM companies WHERE id=?",(ident,)).fetchone():raise ValueError("Firma nicht vorhanden")
+                        if any(u not in available for u in chosen):raise ValueError("Unbekannter Benutzer")
+                        # Save as one set: unchecked users are unassigned.
+                        c.execute("DELETE FROM company_access WHERE company_id=?",(ident,))
+                        for user in chosen:
+                            company_admin.change_access(c,ident,user,current.get(user,get("role")))
+                        # Apply revocations immediately on existing generated shares.
+                        row=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
+                        existing={x["name"] for x in samba_call({"action":"list"}).get("shares",[])}
+                        belonging=[company_admin.share_name(row[0],t[0],fn) for t in c.execute("SELECT doc_type FROM company_types WHERE company_id=?",(ident,)) for fn in company_admin.FUNCTIONS]
+                        if any(name in existing for name in belonging):
+                            if not chosen:raise ValueError("Bei bestehenden Firmenfreigaben muss mindestens ein Benutzer berechtigt bleiben")
+                            reply=samba_call({"action":"company-sync-shares","specs":company_admin.share_specs(c,ident)})
+                            if not reply.get("ok"):raise ValueError(reply.get("error","Samba-Zugriffsrechte konnten nicht synchronisiert werden"))
+                    elif self.path=="/company-delete":
+                        if get("confirm")!="yes":raise ValueError("Löschen muss ausdrücklich bestätigt werden")
+                        ident=int(get("company_id"))
+                        row=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
+                        if not row:raise ValueError("Firma existiert nicht")
+                        prefix=row[0]+"-"
+                        smb=samba_call({"action":"list"})
+                        if not smb.get("ok"):raise ValueError("Samba-Freigaben konnten nicht geprüft werden")
+                        if any(x["name"].lower().startswith(prefix.lower()) for x in smb.get("shares",[])):
+                            raise ValueError("Firma besitzt noch Samba-Freigaben. Aus Sicherheitsgründen zuerst gesondert migrieren; keine Dateien werden gelöscht.")
+                        if c.execute("SELECT 1 FROM profiles WHERE input_share LIKE ? OR output_share LIKE ? OR archive_share LIKE ? LIMIT 1",(prefix+"%",prefix+"%",prefix+"%")).fetchone():
+                            raise ValueError("Firma wird noch in Verarbeitungsprofilen verwendet")
+                        c.execute("DELETE FROM company_access WHERE company_id=?",(ident,))
+                        c.execute("DELETE FROM company_types WHERE company_id=?",(ident,))
+                        c.execute("DELETE FROM companies WHERE id=?",(ident,))
+                    elif self.path=="/company-user-delete":
+                        if get("confirm")!="yes":raise ValueError("Löschen muss ausdrücklich bestätigt werden")
+                        user=get("username")
+                        if not company_admin.USER.fullmatch(user):raise ValueError("Ungültiger Benutzer")
+                        if c.execute("SELECT 1 FROM company_access WHERE username=?",(user,)).fetchone():
+                            raise ValueError("Benutzer ist noch Firmen zugewiesen. Erst alle Häkchen für diesen Benutzer entfernen.")
+                        smb=samba_call({"action":"list"})
+                        if not smb.get("ok"):raise ValueError("Samba-Freigaben konnten nicht geprüft werden")
+                        if any(user in x.get("user","").split() for x in smb.get("shares",[])):
+                            raise ValueError("Benutzer wird noch in Samba-Freigaben verwendet; Zugang bleibt zur Sicherheit erhalten")
+                        c.execute("DELETE FROM smb_accounts WHERE username=?",(user,))
                     elif self.path=="/company-provision":
                         specs=company_admin.share_specs(c,int(get("company_id")))
                         response=samba_call({"action":"company-sync-shares","specs":specs})
