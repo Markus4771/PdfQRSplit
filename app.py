@@ -329,7 +329,10 @@ class Handler(BaseHTTPRequestHandler):
                     c.commit()
             except (ValueError,sqlite3.Error) as exc:
                 return self.page("<h1>Firmenverwaltung: Fehler</h1><p>"+html.escape(str(exc))+"</p><a href='/companies'>Zurück</a>",400)
-            self.send_response(303);self.send_header("Location","/companies");self.end_headers()
+            redirect="/companies"
+            if self.path=="/company-processing":
+                redirect+="?company_id="+quote(get("company_id"))+"&doc_type="+quote(get("doc_type"))+"#firma-"+quote(get("company_id"))
+            self.send_response(303);self.send_header("Location",redirect);self.end_headers()
             return
         if self.path=="/retention":
             try:
