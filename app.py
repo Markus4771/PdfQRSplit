@@ -476,12 +476,14 @@ class Handler(BaseHTTPRequestHandler):
                         response=samba_call({"action":"company-user-create","username":user,"password":get("password")})
                         if not response.get("ok"):raise ValueError(response.get("error","SMB-Benutzer konnte nicht angelegt werden"))
                         c.execute("INSERT INTO smb_accounts(username) VALUES (?)",(user,))
+                        company_admin.save_email(c,user,get("email"))
                     elif self.path=="/company-user-register":
                         user=get("username").strip()
                         if not company_admin.USER.fullmatch(user):raise ValueError("Ungültiger SMB-Benutzername")
                         response=samba_call({"action":"company-user-register","username":user,"password":get("password")})
                         if not response.get("ok"):raise ValueError(response.get("error","SMB-Konto konnte nicht geprüft werden"))
                         c.execute("INSERT OR IGNORE INTO smb_accounts(username) VALUES (?)",(user,))
+                        if get("email"):company_admin.save_email(c,user,get("email"))
                     elif self.path=="/company-access":
                         company_admin.change_access(c,int(get("company_id")),get("username"),get("role"))
                     elif self.path=="/company-users-save":
