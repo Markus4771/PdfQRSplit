@@ -323,7 +323,13 @@ class Handler(BaseHTTPRequestHandler):
                     elif self.path=="/company-processing":
                         ident=int(get("company_id"))
                         typ=get("doc_type")
-                        selected={k:k in data for k in company_processing.FLAGS}
+                        selected={k:k in data for k in (*company_processing.FLAGS,"ocr_rotate","ocr_deskew")}
+                        try:
+                            selected["blank_threshold"]=float(get("blank_threshold").replace(",","."))
+                        except ValueError:
+                            raise ValueError("Leerseiten-Schwellwert ungültig")
+                        selected["ocr_languages"]=get("ocr_languages")
+                        selected["ocr_output"]=get("ocr_output")
                         company_processing.save(c,ident,typ,selected)
                         linked=c.execute("SELECT 1 FROM company_profile_links WHERE company_id=?",(ident,)).fetchone()
                         if linked:
