@@ -20,6 +20,7 @@ import company_admin
 import company_processing
 import review_queue
 import review_pdf
+import duplicate_review
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -139,6 +140,54 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+        if route.path=="/duplicate-review":
+            if self.password_needed():return self.password_form()
+            signature=parse_qs(route.query).get("signature",[""])[0]
+            if len(signature)!=64 or any(ch not in "0123456789abcdef" for ch in signature):
+                return self.page("Ungültige Prüfkennung",400)
+            registry=DATA/"datev.sqlite3"
+            try:
+                with db() as c:
+                    job=c.execute("""SELECT j.file FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id
+                        WHERE j.signature=?""",(signature,)).fetchone()
+                    if not job:raise ValueError("Prüfauftrag nicht vorhanden")
+                with sqlite3.connect("file:"+str(registry)+"?mode=ro",uri=True) as con:
+                    rows=duplicate_review.cases(con,job[0])
+                esc=lambda v:html.escape(str(v),quote=True)
+                page="<header><h1>Dublettenprüfung</h1><a href='/review'>Zur Prüfwarteschlange</a></header><section><p>Quelle: "+esc(Path(job[0]).name)+"</p>"
+                if not rows:page+="<p>Kein zugeordneter Dublettenverdacht im DATEV-Register gefunden.</p>"
+                for digest,matched,path,choice,note,filename in rows:
+                    page+="<article><h3>Verdächtiger Einzelbeleg</h3><p>Signatur: "+esc(digest)+"</p><p>Vergleich mit: "+esc(filename or matched)+"</p>"
+                    page+="<p>Entscheidung: "+esc(choice or "Noch offen")+"</p><p>Begründung: "+esc(note)+"</p>"
+                    page+="<p><a href='/duplicate-pdf?digest="+esc(digest)+"'>Verdächtigen Beleg ansehen</a></p>"
+                    page+="<form method='post' action='/duplicate-decision'><input type='hidden' name='signature' value='"+esc(signature)+"'><input type='hidden' name='digest' value='"+esc(digest)+"'>"
+                    page+="<label>Entscheidung</label><select name='decision'><option value='confirmed'>Als Dublette bestätigen</option><option value='independent'>Kein Duplikat – weiterer Prüfbedarf vor Übergabe</option></select><label>Begründung</label><textarea name='note' maxlength='1000' required></textarea><button>Entscheidung protokollieren</button></form></article><hr>"
+                return self.page(page+"</section>")
+            except (ValueError,sqlite3.Error,OSError) as exc:
+                return self.page("<h1>Dublettenprüfung nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p>",400)
+        if route.path=="/duplicate-pdf":
+            if self.password_needed():return self.password_form()
+            digest=parse_qs(route.query).get("digest",[""])[0]
+            try:
+                with sqlite3.connect("file:"+str(DATA/"datev.sqlite3")+"?mode=ro",uri=True) as con:
+                    path=duplicate_review.inspected_pdf(con,digest,"suspect",DATA/"datev-review",ROOT)
+                size=path.stat().st_size
+                if size>100*1024*1024:raise ValueError("Datei zu groß")
+                self.send_response(200)
+                self.send_header("Content-Type","application/pdf")
+                self.send_header("Content-Disposition","inline; filename=duplicate-"+digest[:12]+".pdf")
+                self.send_header("X-Content-Type-Options","nosniff")
+                self.send_header("Content-Length",str(size))
+                self.send_header("Cache-Control","no-store")
+                self.end_headers()
+                with path.open("rb") as stream:
+                    while True:
+                        chunk=stream.read(65536)
+                        if not chunk:break
+                        self.wfile.write(chunk)
+                return
+            except (ValueError,FileNotFoundError,OSError,sqlite3.Error) as exc:
+                return self.page("<h1>Beleg nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p>",404)
         if route.path in ("/review-pdf","/review-draft"):
             if self.password_needed():return self.password_form()
             token=parse_qs(route.query).get("signature",[""])[0]
@@ -167,7 +216,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except (ValueError,FileNotFoundError,OSError) as exc:
                 return self.page("<h1>PDF nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",404)
-        if route.path not in ("/","/jobs","/datev-review","/companies","/review"):return self.page("Nicht gefunden",404)
+        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
         if route.path=="/review":
             params=parse_qs(route.query)
@@ -197,6 +246,15 @@ class Handler(BaseHTTPRequestHandler):
                 page+="<article><h3>"+esc(item["filename"])+"</h3><p>"+esc(item["company"])+" · "+esc(item["doctype"])+" · "+esc(item["severity"])+" · "+esc(item["category"])+"</p>"
                 page+="<p>"+esc(item["message"])+"</p><p class='small'>"+esc(item["updated"])+" · Status: "+esc(item["state"])+"</p>"
                 page+="<p><a href='/review-pdf?signature="+esc(item["signature"])+"' target='_blank' rel='noopener'>Original-PDF ansehen</a> · <a href='/review-draft?signature="+esc(item["signature"])+"'>Korrekturentwurf herunterladen</a></p>"
+                if item["category"]=="duplicate":
+                    registry=DATA/"datev.sqlite3"
+                    if registry.is_file():
+                        with sqlite3.connect("file:"+str(registry)+"?mode=ro",uri=True) as reg:
+                            try:
+                                matches=duplicate_review.cases(reg,str(ROOT/item["filename"]))
+                            except sqlite3.Error:
+                                matches=[]
+                        page+="<p><a href='/duplicate-review?signature="+esc(item["signature"])+"'>Dublettenvergleich und Entscheidung</a></p>"
                 page+="<form method='post' action='/review-draft-create'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Seiten übernehmen (z. B. 1,3,4; leer = alle)</label><input name='pages' maxlength='512' placeholder='Alle Seiten'><label>Seiten drehen</label><select name='rotation'><option value='0'>Nicht drehen</option><option value='90'>90 Grad</option><option value='180'>180 Grad</option><option value='270'>270 Grad</option></select><button>Korrekturentwurf erstellen</button></form>"
 
                 page+="<form method='post' action='/review-update'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Prüfstatus</label><select name='state'>"
@@ -280,7 +338,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -300,6 +358,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self.page("<h1>Korrektur fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",400)
             self.send_response(303)
             self.send_header("Location","/review-draft?signature="+quote(get("signature")))
+            self.end_headers()
+            return
+        if self.path=="/duplicate-decision":
+            if self.password_needed():return self.password_form()
+            try:
+                signature=get("signature")
+                with db() as c:
+                    source=c.execute("""SELECT j.file FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id
+                        WHERE j.signature=?""",(signature,)).fetchone()
+                    if not source:raise ValueError("Prüfauftrag nicht vorhanden")
+                registry=DATA/"datev.sqlite3"
+                with sqlite3.connect(registry,timeout=10) as con:
+                    rows=duplicate_review.cases(con,source[0])
+                    if get("digest") not in {row[0] for row in rows}:raise ValueError("Dublette nicht diesem Auftrag zugeordnet")
+                    duplicate_review.decision(con,get("digest"),get("decision"),get("note"))
+                    con.commit()
+            except (ValueError,OSError,sqlite3.Error) as exc:
+                return self.page("<h1>Entscheidung nicht gespeichert</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/duplicate-review?signature="+quote(signature))
             self.end_headers()
             return
         if self.path=="/review-update":
