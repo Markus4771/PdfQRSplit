@@ -233,9 +233,9 @@ class Handler(BaseHTTPRequestHandler):
             with db() as c:cfg=notifications.config(c)
             esc=lambda v:html.escape(str(v),quote=True)
             out="<header><h1>E-Mail-Benachrichtigungen</h1><a href='/review'>PDF-Prüfwarteschlange</a></header><section><h2>SMTP-Einstellungen</h2>"
-            out+="<p class='small'>Kritische Fehler und Archiv-/Dublettenwarnungen firmenverwalteter Aufträge werden einmal pro Ereignis versendet. Ohne Aktivierung kein E-Mail-Versand.</p>"
+            out+="<p class='small'>Warnungen werden an die zugeordneten Firmenbenutzer mit hinterlegter E-Mail-Adresse versendet. Ohne Aktivierung kein E-Mail-Versand.</p>"
             out+="<form method='post' action='/notifications-save'>"
-            for key,title,value in (("host","SMTP-Server",cfg["host"]),("port","Port",cfg["port"]),("username","SMTP-Benutzername",cfg["username"]),("sender","Absenderadresse",cfg["sender"]),("recipient","Empfängeradresse",cfg["recipient"])):
+            for key,title,value in (("host","SMTP-Server",cfg["host"]),("port","Port",cfg["port"]),("username","SMTP-Benutzername",cfg["username"]),("sender","Absenderadresse",cfg["sender"])):
                 out+="<label>"+title+"</label><input name='"+key+"' value='"+esc(value)+"' required"+(" type='number' min='1' max='65535'" if key=="port" else "")+">"
             out+="<label>SMTP-Passwort (leer lassen = unverändert)</label><input type='password' name='secret' autocomplete='new-password'>"
             out+="<label>Transportverschlüsselung</label><select name='mode'>"
