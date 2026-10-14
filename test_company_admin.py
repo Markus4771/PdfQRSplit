@@ -51,5 +51,25 @@ class TestCompanyAdmin(unittest.TestCase):
         with self.assertRaises(ValueError):
             share_specs(self.db,cid)
 
+
+    def test_checkbox_multiple_users(self):
+        cid=save_company(self.db,"10003","Test",["Rechnungseingang"])
+        for user in ("Markus","Buchhaltung"):
+            self.db.execute("INSERT INTO smb_accounts(username) VALUES (?)",(user,))
+            change_access(self.db,cid,user,"write")
+        specs=share_specs(self.db,cid)
+        entry=[x for x in specs if x["name"].endswith("-Eingang")][0]
+        self.assertEqual(set(entry["writers"]),{"Markus","Buchhaltung"})
+
+    def test_company_html_contains_delete_and_checkboxes(self):
+        from company_admin import render
+        cid=save_company(self.db,"10004","Test",["Kasse"])
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES (?)",("Markus",))
+        html=render(self.db)
+        self.assertIn("action='/company-users-save'",html)
+        self.assertIn("action='/company-delete'",html)
+        self.assertIn("action='/company-user-delete'",html)
+        self.assertIn("name='username' value='Markus'",html)
+
 if __name__=="__main__":
     unittest.main()
