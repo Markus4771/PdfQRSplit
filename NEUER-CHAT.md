@@ -196,3 +196,7 @@ Der zusätzliche Button „Optionen bearbeiten“ entfällt. Die Auswahlbox star
 ## 14.10.2026 OCR und Leerseiten pro Belegart
 
 Neu im Firma-Belegart-Editor: maximaler Schwarzanteil fuer Leerseiten 0 bis 2 Prozent, OCR-Sprache, PDF oder PDF/A, automatische Drehung und Begradigung. Vererbung durch Firmenstandard. Automatisch verwaltete Profile uebernehmen die Werte. Tests erweitert. Debian-Test ausstehend.
+
+## QR-Trenncode in Firmenverwaltung (14.10.2026)
+
+Der bisher global gespeicherte QR-Trenncode wird nur noch unter `/companies` oben angezeigt und bearbeitet. Auf der Hauptseite entfällt die doppelte Einstellung. Es bleibt derselbe Datensatz `settings.qr_text` für sämtliche manuellen und firmenverwalteten Profile; die Verarbeitungslogik ändert sich nicht. Speichern führt wieder zur Firmenverwaltung. Für unterschiedliche QR-Codes pro Firma ist eine spätere getrennte Funktion nötig.
