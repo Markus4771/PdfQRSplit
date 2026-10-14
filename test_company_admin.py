@@ -3,6 +3,7 @@ import unittest
 
 from company_admin import TYPES, FUNCTIONS, migrate, save_company, change_access, share_specs, share_name
 
+from company_admin import save_user_selection
 class TestCompanyAdmin(unittest.TestCase):
     def setUp(self):
         self.db=sqlite3.connect(":memory:")
@@ -21,6 +22,17 @@ class TestCompanyAdmin(unittest.TestCase):
         for x in specs:
             self.assertEqual(x["protected"],not x["name"].endswith("-Eingang"))
             if x["protected"]:self.assertEqual(x["writers"],[])
+
+    def test_checkbox_selection_persists_and_updates(self):
+        cid=save_company(self.db,"10001","Test",["Kasse"])
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES ('anna')")
+        self.db.execute("INSERT INTO smb_accounts(username) VALUES ('ben')")
+        self.assertEqual(save_user_selection(self.db,cid,["anna","ben"],"write"),2)
+        self.assertEqual(dict(self.db.execute("SELECT username,role FROM company_access WHERE company_id=?",(cid,))),{"anna":"write","ben":"write"})
+        save_user_selection(self.db,cid,["anna"],"admin")
+        self.assertEqual(dict(self.db.execute("SELECT username,role FROM company_access WHERE company_id=?",(cid,))),{"anna":"admin"})
+        with self.assertRaises(ValueError):
+            save_user_selection(self.db,cid,[],"admin")
 
     def test_invalid_name_and_types(self):
         with self.assertRaises(ValueError):
