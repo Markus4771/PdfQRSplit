@@ -35,7 +35,7 @@ def save_email(con,username,email):
     email=email.strip()
     if not USER.fullmatch(username) or not con.execute("SELECT 1 FROM smb_accounts WHERE username=?",(username,)).fetchone():
         raise ValueError("SMB-Benutzer unbekannt")
-    if email and (len(email)>254 or email.count("@")!=1 or any(ch in email for ch in (" ",",",";","\\r","\\n","\\t")) or "." not in email.split("@")[-1]):
+    if email and (len(email)>254 or email.count("@")!=1 or any(ch in email for ch in (" ",",",";",chr(13),chr(10),chr(9))) or "." not in email.split("@")[-1]):
         raise ValueError("Ungültige E-Mail-Adresse")
     con.execute("UPDATE smb_accounts SET email=? WHERE username=?",(email,username))
 
