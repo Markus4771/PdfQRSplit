@@ -102,15 +102,14 @@ def sync_profiles(con,cid,existing_shares):
     return len(specs)
 
 def render(con,cid,types,esc,selected_company=None,selected_type=""):
-    out="<h3>PDF-Verarbeitung</h3><p class='small'>Zuerst Firmenstandard oder Belegart wählen, dann Optionen bearbeiten und speichern. Pro Firma wird nur ein Einstellungsformular angezeigt.</p>"
-    out+="<form method='get' action='/companies'><input type='hidden' name='company_id' value='"+str(cid)+"'><label>Belegart auswählen</label><select name='doc_type'>"
+    out="<h3>PDF-Verarbeitung</h3><p class='small'>Belegart auswählen: Die Optionen werden automatisch geladen. Änderungen erst mit „Einstellungen speichern“ übernehmen.</p>"
+    out+="<form method='get' action='/companies'><input type='hidden' name='company_id' value='"+str(cid)+"'><label>Belegart auswählen</label><select name='doc_type' onchange='this.form.requestSubmit()'>"
     for typ in ("",*types):
         title="Firmenstandard (alle Belegarten)" if not typ else typ
         active=selected_company==cid and selected_type==typ
         out+="<option value='"+esc(typ)+"'"+(" selected" if active else "")+">"+esc(title)+"</option>"
-    out+="</select><button>Optionen bearbeiten</button></form>"
+    out+="</select><noscript><button>Belegart anzeigen</button></noscript></form>"
     if selected_company!=cid:
-        out+="<p class='small'>Belegart auswählen und „Optionen bearbeiten“ klicken.</p>"
         return out
     if selected_type not in ("",*types):
         return out+"<p class='notice'>Die gewählte Belegart ist nicht aktiv.</p>"
