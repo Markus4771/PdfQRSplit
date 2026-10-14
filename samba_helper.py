@@ -60,7 +60,7 @@ def main():
     action=request.get("action")
     entries=read()
     if action=="list":
-        print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no","datev_protected":v.get("comment")=="QRSCAN-DATEV-READONLY"} for n,v in sorted(entries.items())]}));return
+        print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no","datev_protected":(v.get("comment")=="QRSCAN-DATEV-READONLY" or (v.get("comment")=="QRSCAN-COMPANY-MANAGED" and v.get("read only")=="yes" and not v.get("write list")))} for n,v in sorted(entries.items())]}));return
     if action=="company-user-create":
         user=request.get("username","");password=request.get("password","")
         if not isinstance(user,str) or not USER.fullmatch(user) or not isinstance(password,str) or not 12<=len(password)<=256:
@@ -72,6 +72,14 @@ def main():
         run(["useradd","--system","--no-create-home","--shell","/usr/sbin/nologin",user])
         result=subprocess.run(["smbpasswd","-s","-a",user],input=password+"\\n"+password+"\\n",capture_output=True,text=True,timeout=20)
         if result.returncode:fail("SMB-Benutzer konnte nicht eingerichtet werden")
+        print(json.dumps({"ok":True}));return
+    if action=="company-user-register":
+        user=request.get("username","");password=request.get("password","")
+        if not isinstance(user,str) or not USER.fullmatch(user) or not isinstance(password,str) or not password:
+            fail("Ungültige SMB-Benutzerdaten")
+        if not any(user in v.get("valid users","").split() for v in entries.values()):
+            fail("Benutzer gehört nicht zu einer verwalteten Samba-Freigabe")
+        verify_user(user,password)
         print(json.dumps({"ok":True}));return
     if action=="company-sync-shares":
         # Changes only explicitly QR Scan Manager-generated shares with strict markers.
@@ -114,6 +122,8 @@ def main():
         print(json.dumps({"ok":True,"count":len(specs)}));return
     name=request.get("name","")
     if not isinstance(name,str) or not NAME.fullmatch(name):fail("Ungültiger Freigabename")
+    if action in ("update","delete","password","protect-datev") and name in entries and entries[name].get("comment")=="QRSCAN-COMPANY-MANAGED":
+        fail("Firmenfreigaben werden ausschließlich in der Firmenverwaltung verwaltet")
     if action=="create":
         user=request.get("user","");password=request.get("password","")
         if not isinstance(user,str) or not USER.fullmatch(user):fail("Ungültiger SMB-Benutzer")
