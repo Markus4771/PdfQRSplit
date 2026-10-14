@@ -385,6 +385,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path=="/profile-update":
                 try:
                     ident=int(get("id"))
+                    if c.execute("SELECT 1 FROM company_profile_links WHERE profile_id=?",(ident,)).fetchone():
+                        raise ValueError("Dieses Profil wird in der Firmenverwaltung gepflegt")
                     values=check(data,shares())
                     if "datev_mode" in data and "qr_split" not in data:
                         raise ValueError("DATEV-Modus benötigt QR-Code-Trennung. Übermittelt: qr_split=aus, datev_mode=an. Bitte QR-Trennung im selben Profilformular aktivieren.")
@@ -404,6 +406,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path=="/delete":
                 try:ident=int(get("id"))
                 except ValueError:return self.page("Ungültige ID",400)
+                if c.execute("SELECT 1 FROM company_profile_links WHERE profile_id=?",(ident,)).fetchone():
+                    return self.page("Firmenprofil kann nur in der Firmenverwaltung geändert werden",409)
                 c.execute("DELETE FROM profiles WHERE id=?",(ident,))
         self.send_response(303);self.send_header("Location","/");self.end_headers()
 
