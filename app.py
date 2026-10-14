@@ -13,7 +13,7 @@ import sqlite3
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import parse_qs
+from urllib.parse import parse_qs,urlsplit,quote
 from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
 import company_admin
@@ -128,10 +128,15 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<h1>Administratorpasswort ändern</h1><p>"+html.escape(msg)+"</p><section><form method='post' action='/password'><label>Neues Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><label>Wiederholen</label><input type='password' name='confirm' minlength='12' required><button>Passwort ändern</button></form></section>")
     def do_GET(self):
         if not self.guard():return
-        if self.path not in ("/","/jobs","/datev-review","/companies"):return self.page("Nicht gefunden",404)
+        route=urlsplit(self.path)
+        if route.path not in ("/","/jobs","/datev-review","/companies"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
-        if self.path=="/companies":
-            with db() as c: content=company_admin.render(c)
+        if route.path=="/companies":
+            params=parse_qs(route.query)
+            try:cid=int(params.get("company_id",["0"])[0])
+            except ValueError:cid=None
+            typ=params.get("doc_type",[""])[0]
+            with db() as c: content=company_admin.render(c,cid,typ)
             return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content)
         if self.path=="/datev-review":
             entries=[]
