@@ -194,30 +194,24 @@ class Handler(BaseHTTPRequestHandler):
                              "<section><h2>Letzte 100 Aufträge</h2>"+("".join(lines) or "Noch keine Aufträge")+"</section>"
                              "<p class='small'>Bei Wiederholung abgeschlossener Aufträge werden neue Ausgabedateien mit eigenem Namenszusatz erstellt. "
                              "Bei Konflikten bleibt der Auftrag fehlgeschlagen.</p>")
-        s=shares()
         with db() as c:
-            profiles=c.execute("SELECT "+SELECT+" FROM profiles ORDER BY name").fetchall()
-        options="".join("<option value='"+html.escape(n,quote=True)+"'>"+html.escape(n)+"</option>" for n in s)
-        rows=""
-        for p in profiles:
-            checked=", ".join(k for k,v in zip(FIELDS,p[4:]) if v) or "Keine"
-            rows+=controls(p,s,"/profile-update")+"<p><b>"+html.escape(p[1])+"</b>: "+html.escape(p[2])+" → "+html.escape(p[3])+"<br><span class='small'>"+html.escape(checked)+"</span></p><form method='post' action='/delete'><input type='hidden' name='id' value='"+str(p[0])+"'><button>Profil entfernen</button></form><hr>"
-        msg="<p class='notice'>Keine kompatiblen Samba-Freigaben gefunden. Zuerst Freigaben im bestehenden Samba-Manager anlegen.</p>" if not s else ""
-        result=samba_call({"action":"list"})
-        smb_html="<section><h2>Samba-Freigaben</h2><form method='post' action='/smb-create'><label>Freigabename</label><input name='name' required><label>SMB-Benutzer</label><input name='user' required><label>SMB-Passwort (mind. 12 Zeichen)</label><input name='password' type='password' minlength='12' required><label><input type='checkbox' name='writable' checked> Schreibzugriff</label><label><input type='checkbox' name='datev_protected'> DATEV-Übergabe: Windows nur lesen</label><button>Freigabe anlegen</button></form>"
-        for entry in result.get("shares",[]):
-            safe=html.escape(entry["name"],quote=True)
-            smb_html+="<h3>"+safe+"</h3><p>Benutzer: "+html.escape(entry.get("user",""))+"</p>"
-            if entry.get("datev_protected"):
-                smb_html+="<p><b>DATEV geschützt: SMB nur lesen</b></p>"
-            else:
-                smb_html+="<form method='post' action='/smb-protect-datev'><input type='hidden' name='name' value='"+safe+"'><button>Als DATEV-Übergabe schützen (Windows nur lesen)</button></form>"
-            smb_html+="<form method='post' action='/smb-update'><input type='hidden' name='name' value='"+safe+"'><label>Auf vorhandenen SMB-Benutzer umstellen (optional)</label><input name='user' placeholder='Bestehender SMB-Benutzer'><label>Passwort dieses Benutzers</label><input name='password' type='password' placeholder='Nur bei Benutzerwechsel'><label>Zugriff</label><select name='writable'><option value='yes'>Lesen/Schreiben</option><option value='no'>Nur lesen</option></select><button>Freigabe speichern</button></form>"
-            smb_html+="<form method='post' action='/smb-password'><input type='hidden' name='name' value='"+safe+"'><input type='password' name='password' minlength='12' required placeholder='Neues SMB-Passwort'><button>Passwort ändern</button></form>"
-            smb_html+="<form method='post' action='/smb-delete'><input type='hidden' name='name' value='"+safe+"'><button>Freigabe entfernen (Dateien bleiben)</button></form>"
-        smb_html+="</section>"
-        if not result.get("ok"): smb_html="<p class='notice'>"+html.escape(result.get("error","Samba-Fehler"))+"</p>"+smb_html
-        self.page("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · <a href='/jobs'>Aufträge & Fehler</a></nav></header><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
+            profile_count=c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0]
+            legacy=c.execute("""SELECT COUNT(*) FROM profiles p LEFT JOIN company_profile_links l
+                ON p.id=l.profile_id WHERE l.profile_id IS NULL""").fetchone()[0]
+            firms=c.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
+        summary=("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · "
+                 "<a href='/jobs'>Aufträge & Fehler</a> · <a href='/datev-review'>DATEV-Prüfbereich</a></nav></header>"
+                 "<section><h2>Übersicht</h2><p>Firmen: "+str(firms)+" · Aktive Profildatensätze: "
+                 +str(profile_count)+"</p><p>Die Verarbeitung wird unter "
+                 "<a href='/companies'>Firmen & Benutzer</a> konfiguriert.</p></section>")
+        if legacy:
+            summary+=("<section><h2>Ältere Verarbeitungsprofile</h2><p class='notice'>"
+                      +str(legacy)+" manuell angelegte Profile sind weiterhin in der Datenbank und "
+                      "können noch von der Überwachung verarbeitet werden. Bitte erst nach Prüfung "
+                      "der neuen Firmenprofile gezielt deaktivieren oder entfernen. "
+                      "Dieses Update löscht sie nicht automatisch.</p></section>")
+        self.page(summary)
+
     def do_POST(self):
         if not self.guard():return
         if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing"):return self.page("Nicht gefunden",404)
