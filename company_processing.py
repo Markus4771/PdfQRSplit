@@ -103,7 +103,7 @@ def sync_profiles(con,cid,existing_shares):
 
 def render(con,cid,types,esc,selected_company=None,selected_type=""):
     out="<h3>PDF-Verarbeitung</h3><p class='small'>Belegart auswählen: Die Optionen werden automatisch geladen. Änderungen erst mit „Einstellungen speichern“ übernehmen.</p>"
-    out+="<form method='get' action='/companies'><input type='hidden' name='company_id' value='"+str(cid)+"'><label>Belegart auswählen</label><select name='doc_type' onchange='this.form.requestSubmit()'>"
+    out+="<form method='get' action='/companies'><input type='hidden' name='company_id' value='"+str(cid)+"'><label>Belegart auswählen</label><select name='doc_type' data-auto-submit='belegart'>"
     for typ in ("",*types):
         title="Firmenstandard (alle Belegarten)" if not typ else typ
         active=selected_company==cid and selected_type==typ
