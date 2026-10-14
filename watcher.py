@@ -16,6 +16,7 @@ from pathlib import Path
 
 from worker import run
 from original_archive import prepare_archive,remove_archived_source
+from profile_logs import write_job
 from retry_policy import MAX_ATTEMPTS, should_retry, next_retry
 from output_naming import output_stem
 from jobs_ui import cleanup_jobs
@@ -191,6 +192,10 @@ def once(con,profile,shares,seen):
                     result["archive_warning"]="Eingangsfreigabe wird von mehreren Profilen genutzt; Original bleibt erhalten"
                 con.execute("UPDATE jobs SET status='done',details=?,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(json.dumps(result,ensure_ascii=False),digest))
                 con.commit()
+                try:
+                    write_job(con,ident,shares,digest,"done",path,result)
+                except Exception as log_error:
+                    logging.error("Company LOG export failed (PDF handoff remains completed): %s",log_error)
                 if archive_ready:
                     archived_path,archived_stat,expected=archive_ready
                     try:
@@ -211,6 +216,11 @@ def once(con,profile,shares,seen):
                     con.execute("UPDATE jobs SET status='error',details=?,next_retry=NULL,updated_at=CURRENT_TIMESTAMP WHERE signature=?",(reason[:1000],digest))
                     logging.exception("Processing failed permanently: %s",path)
             con.commit()
+            try:
+                if con.execute("SELECT status FROM jobs WHERE signature=?",(digest,)).fetchone()[0] in ("retry","error"):
+                    write_job(con,ident,shares,digest,"error",path,{"message":str(ex)})
+            except Exception as log_error:
+                logging.error("Company LOG export failed: %s",log_error)
         except (OSError,sqlite3.Error,ValueError) as exc:
             logging.error("Unable to inspect %s: %s",path,exc)
 
