@@ -80,7 +80,7 @@ def share_specs(con,company_id):
             specs.append({"name":share_name(code,typ,fn),"readers":readers,"writers":writers,"protected":fn in ("Archiv","Ausgang","LOG")})
     return specs
 
-def render(con):
+def render(con,selected_company=None,selected_type=""):
     esc=lambda s:html.escape(str(s),quote=True)
     rows=con.execute("SELECT id,code,display_name FROM companies ORDER BY code").fetchall()
     users=[x[0] for x in con.execute("SELECT username FROM smb_accounts ORDER BY username")]
@@ -112,7 +112,7 @@ def render(con):
         for t in TYPES:
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
         out+="<button>Belegarten speichern</button></form>"
-        out+=company_processing.render(con,cid,types,esc)
+        out+=company_processing.render(con,cid,types,esc,selected_company,selected_type)
         out+="<h3>Benutzer der Firma zuweisen</h3><p class='small'>Mehrere Benutzer per Checkbox auswählen. Eine Berechtigungsstufe gilt für die neu ausgewählten Benutzer; vorhandene Rollen bleiben bei bereits zugewiesenen Benutzern erhalten.</p>"
         out+="<p>Aktuelle Zuordnung: "+(esc(", ".join(f"{u}: {r}" for u,r in acl)) if acl else "Keine Benutzer zugewiesen")+"</p>"
         out+="<form method='post' action='/company-users-save'><input type='hidden' name='company_id' value='"+str(cid)+"'>"
