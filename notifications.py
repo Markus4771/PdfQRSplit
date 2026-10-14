@@ -26,6 +26,7 @@ def validate(settings):
     if not settings["host"] or any(x in settings["host"] for x in "\r\n /"):raise ValueError("Ungültiger SMTP-Server")
     for key in ("sender","recipient"):
         val=settings[key]
+        if key=="recipient" and not val:continue
         if not val or "\r" in val or "\n" in val or "@" not in val or "," in val:
             raise ValueError("Ungültige E-Mail-Adresse: "+key)
     if settings["username"] and not settings["secret"]:raise ValueError("SMTP-Passwort fehlt")
