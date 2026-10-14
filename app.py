@@ -21,6 +21,7 @@ import company_processing
 import review_queue
 import review_pdf
 import duplicate_review
+import notifications
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -216,8 +217,24 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except (ValueError,FileNotFoundError,OSError) as exc:
                 return self.page("<h1>PDF nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",404)
-        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf"):return self.page("Nicht gefunden",404)
+        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
+        if route.path=="/notifications":
+            if self.password_needed():return self.password_form()
+            with db() as c:cfg=notifications.config(c)
+            esc=lambda v:html.escape(str(v),quote=True)
+            out="<header><h1>E-Mail-Benachrichtigungen</h1><a href='/review'>PDF-Prüfwarteschlange</a></header><section><h2>SMTP-Einstellungen</h2>"
+            out+="<p class='small'>Kritische Fehler und Archiv-/Dublettenwarnungen firmenverwalteter Aufträge werden einmal pro Ereignis versendet. Ohne Aktivierung kein E-Mail-Versand.</p>"
+            out+="<form method='post' action='/notifications-save'>"
+            for key,title,value in (("host","SMTP-Server",cfg["host"]),("port","Port",cfg["port"]),("username","SMTP-Benutzername",cfg["username"]),("sender","Absenderadresse",cfg["sender"]),("recipient","Empfängeradresse",cfg["recipient"])):
+                out+="<label>"+title+"</label><input name='"+key+"' value='"+esc(value)+"' required"+(" type='number' min='1' max='65535'" if key=="port" else "")+">"
+            out+="<label>SMTP-Passwort (leer lassen = unverändert)</label><input type='password' name='secret' autocomplete='new-password'>"
+            out+="<label>Transportverschlüsselung</label><select name='mode'>"
+            for key,label in (("starttls","STARTTLS, typischerweise Port 587"),("ssl","SSL/TLS, typischerweise Port 465")):
+                out+="<option value='"+key+"'"+(" selected" if cfg["mode"]==key else "")+">"+label+"</option>"
+            out+="</select><label><input type='checkbox' name='enabled'"+(" checked" if cfg["enabled"] else "")+"> Benachrichtigungen aktivieren</label>"
+            out+="<button>Einstellungen speichern</button></form></section>"
+            return self.page(out)
         if route.path=="/review":
             params=parse_qs(route.query)
             company=params.get("company",[""])[0]
@@ -317,7 +334,7 @@ class Handler(BaseHTTPRequestHandler):
                 ON p.id=l.profile_id WHERE l.profile_id IS NULL""").fetchone()[0]
             firms=c.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
         summary=("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · "
-                 "<a href='/jobs'>Aufträge & Fehler</a> · <a href='/review'>PDF-Prüffälle</a> · <a href='/datev-review'>DATEV-Prüfbereich</a></nav></header>"
+                 "<a href='/jobs'>Aufträge & Fehler</a> · <a href='/review'>PDF-Prüffälle</a> · <a href='/notifications'>E-Mail-Warnungen</a> · <a href='/datev-review'>DATEV-Prüfbereich</a></nav></header>"
                  "<section><h2>Übersicht</h2><p>Firmen: "+str(firms)+" · Aktive Profildatensätze: "
                  +str(profile_count)+"</p><p>Die Verarbeitung wird unter "
                  "<a href='/companies'>Firmen & Benutzer</a> konfiguriert.</p></section>")
@@ -331,7 +348,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision","/notifications-save"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -373,6 +390,19 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Location","/duplicate-review?signature="+quote(signature))
             self.end_headers()
             return
+        if self.path=="/notifications-save":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    current=notifications.config(c)
+                    settings=dict(host=get("host").strip(),port=int(get("port")),username=get("username").strip(),
+                        secret=get("secret") or current["secret"],sender=get("sender").strip(),
+                        recipient=get("recipient").strip(),mode=get("mode"),enabled=int("enabled" in data))
+                    notifications.save(c,settings)
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>SMTP-Konfiguration ungültig</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303);self.send_header("Location","/notifications");self.end_headers();return
         if self.path=="/review-update":
             if self.password_needed():return self.password_form()
             try:
