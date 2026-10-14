@@ -8,6 +8,7 @@ class TestCompanyAdmin(unittest.TestCase):
     def setUp(self):
         self.db=sqlite3.connect(":memory:")
         migrate(self.db)
+        self.db.execute("CREATE TABLE profiles (id INTEGER PRIMARY KEY, name TEXT, input_share TEXT, output_share TEXT)")
 
     def tearDown(self):
         self.db.close()
