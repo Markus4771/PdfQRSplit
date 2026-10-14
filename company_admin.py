@@ -99,8 +99,31 @@ def share_specs(con,company_id):
             specs.append({"name":share_name(code,typ,fn),"readers":readers,"writers":writers,"protected":fn in ("Archiv","Ausgang","LOG")})
     return specs
 
-def render(con,selected_company=None,selected_type=""):
+def render_company_status(con,cid,code,types,acl,share_data,esc):
+    from company_processing import profile_name
+    reachable=bool(share_data.get("ok"))
+    present={x.get("name") for x in share_data.get("shares",[]) if isinstance(x,dict)} if reachable else set()
+    out="<div><h3>Einrichtungsstatus</h3><p>SMB-Benutzer zugewiesen: <b>"+str(len(acl))+"</b></p>"
+    if not acl:out+="<p class='notice'>Kein Benutzer zugeordnet. Bitte Zuordnung speichern.</p>"
+    if not reachable:out+="<p class='notice'>Samba-Manager nicht erreichbar: Freigabenstatus nicht pruefbar.</p>"
+    out+="<table style='width:100%;text-align:left'><tr><th>Belegart</th><th>Freigaben</th><th>Profil</th></tr>"
+    complete=bool(types and acl and reachable)
+    for typ in types:
+        expected={share_name(code,typ,fn) for fn in FUNCTIONS}
+        found=len(expected.intersection(present))
+        count=str(found)+"/"+str(len(expected)) if reachable else "Nicht pruefbar"
+        row=con.execute("SELECT p.name,p.input_share,p.output_share FROM company_profile_links l LEFT JOIN profiles p ON p.id=l.profile_id WHERE l.company_id=? AND l.doc_type=?",(cid,typ)).fetchone()
+        valid=bool(row and row[0]==profile_name(cid,typ) and row[1]==share_name(code,typ,"Eingang") and row[2]==share_name(code,typ,"Ausgang"))
+        complete=complete and valid and found==len(expected)
+        out+="<tr><td>"+esc(typ)+"</td><td>"+esc(count)+"</td><td>"+("Vorhanden" if valid else "Fehlt oder abweichend")+"</td></tr>"
+    out+="</table>"
+    if complete:out+="<p><b>Konfiguration vollstaendig angelegt</b> (Verarbeitung noch nicht geprueft).</p>"
+    else:out+="<p class='small'>Fehlende Benutzer, Freigaben oder Profile bitte vor dem ersten Scan einrichten.</p>"
+    return out+"</div>"
+
+def render(con,selected_company=None,selected_type="",share_data=None):
     esc=lambda s:html.escape(str(s),quote=True)
+    share_data=share_data if share_data is not None else {"ok":False}
     rows=con.execute("SELECT id,code,display_name FROM companies ORDER BY code").fetchall()
     users=[x[0] for x in con.execute("SELECT username FROM smb_accounts ORDER BY username")]
     forms="<section id='firma-neu'><h2>Firmen & DATEV-Belegarten</h2><p class='small'>Neue Firmen werden zunächst ohne Samba-Freigaben angelegt. Nach Benutzerzuordnung können die Freigaben ausdrücklich erstellt werden.</p>"
@@ -127,6 +150,7 @@ def render(con,selected_company=None,selected_type=""):
         types=[x[0] for x in con.execute("SELECT doc_type FROM company_types WHERE company_id=?",(cid,))]
         acl=con.execute("SELECT username,role FROM company_access WHERE company_id=? ORDER BY username",(cid,)).fetchall()
         out+=f"<section id='firma-{cid}'><h2>{esc(code)} – {esc(title)}</h2><p>Belegarten: {esc(', '.join(types))}</p>"
+        out+=render_company_status(con,cid,code,types,acl,share_data,esc)
         out+="<form method='post' action='/company-types'><input type='hidden' name='company_id' value='"+str(cid)+"'><h3>Belegarten bearbeiten</h3>"
         for t in TYPES:
             out+="<label><input type='checkbox' name='type' value='"+t+"'"+(" checked" if t in types else "")+"> "+t+"</label>"
