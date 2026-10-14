@@ -16,6 +16,7 @@ from pathlib import Path
 from urllib.parse import parse_qs
 from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
+import company_admin
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -34,6 +35,7 @@ def db():
     c.execute("""CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL)""")
     c.execute("INSERT OR IGNORE INTO settings VALUES ('qr_text','SCAN-TRENNUNG-001')")
     migrate(c)
+    company_admin.migrate(c)
     c.commit()
     return c
 
@@ -125,8 +127,11 @@ class Handler(BaseHTTPRequestHandler):
         self.page("<h1>Administratorpasswort ändern</h1><p>"+html.escape(msg)+"</p><section><form method='post' action='/password'><label>Neues Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><label>Wiederholen</label><input type='password' name='confirm' minlength='12' required><button>Passwort ändern</button></form></section>")
     def do_GET(self):
         if not self.guard():return
-        if self.path not in ("/","/jobs","/datev-review"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/","/jobs","/datev-review","/companies"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
+        if self.path=="/companies":
+            with db() as c: content=company_admin.render(c)
+            return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content)
         if self.path=="/datev-review":
             entries=[]
             registry=DATA/"datev.sqlite3"
@@ -196,10 +201,10 @@ class Handler(BaseHTTPRequestHandler):
             smb_html+="<form method='post' action='/smb-delete'><input type='hidden' name='name' value='"+safe+"'><button>Freigabe entfernen (Dateien bleiben)</button></form>"
         smb_html+="</section>"
         if not result.get("ok"): smb_html="<p class='notice'>"+html.escape(result.get("error","Samba-Fehler"))+"</p>"+smb_html
-        self.page("<header><h1>QR Scan Manager</h1><a href='/jobs'>Aufträge & Fehler</a></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
+        self.page("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · <a href='/jobs'>Aufträge & Fehler</a></nav></header><section><h2>QR-Trenncode</h2><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section><section><h2>Neues Verarbeitungsprofil</h2>"+msg+"<form method='post' action='/add'><label>Name</label><input name='name' required maxlength='40'><div class='row'><div><label>Eingangsfreigabe</label><select name='input'>"+options+"</select></div><div><label>Ausgangsfreigabe</label><select name='output'>"+options+"</select></div></div>"+"".join("<label><input type='checkbox' name='"+k+"'"+(" checked" if k=="qr_split" else "")+">"+title+"</label>" for k,title in [("qr_split","QR-Code-Trennung"),("remove_separators","QR-Trennblätter entfernen"),("remove_blank","Leerseiten entfernen (Scan PDF Cleaner)"),("crop","Ränder beschneiden (Scan PDF Cleaner)"),("ocr","OCRmyPDF am Schluss"),("datev_mode","DATEV-Sicherheitsmodus (eigene Ausgangsfreigabe verwenden)")])+"<label>Original-Archiv (separate Samba-Freigabe)</label><select name='archive_share'><option value=''>Internes Archiv (bisher)</option>"+options+"</select>"+"<button>Profil anlegen</button></form></section>"+smb_html+"<section><h2>Profile</h2>"+(rows or "Keine Profile angelegt")+"</section><p class='small'>Samba-Benutzer und Passwörter bleiben im separaten Samba-Manager. Der PDF-Worker ist noch nicht aktiviert. GUI nur im geschützten LAN betreiben.</p>")
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-access","/company-provision"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -216,6 +221,44 @@ class Handler(BaseHTTPRequestHandler):
             tmp=AUTH.with_suffix(".tmp");tmp.write_text(json.dumps(new));os.chmod(tmp,0o600);os.replace(tmp,AUTH)
             self.page("<h1>Passwort gespeichert</h1><p>Bitte Browseranmeldung neu durchführen.</p>");return
         if self.password_needed():return self.password_form()
+        if self.path.startswith("/company-"):
+            try:
+                with db() as c:
+                    if self.path=="/company-create":
+                        company_admin.save_company(c,get("code"),get("display_name"),data.get("type",[]))
+                    elif self.path=="/company-types":
+                        ident=int(get("company_id"))
+                        company=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
+                        if not company:raise ValueError("Firma existiert nicht")
+                        selected=data.get("type",[])
+                        if not selected or any(t not in company_admin.TYPES for t in selected):raise ValueError("Mindestens einen gültigen Belegtyp auswählen")
+                        for typ in selected:
+                            for fn in company_admin.FUNCTIONS:company_admin.share_name(company[0],typ,fn)
+                        old={r[0] for r in c.execute("SELECT doc_type FROM company_types WHERE company_id=?",(ident,))}
+                        removed=old-set(selected)
+                        current={x["name"] for x in samba_call({"action":"list"}).get("shares",[])}
+                        if any(company_admin.share_name(company[0],typ,fn) in current for typ in removed for fn in company_admin.FUNCTIONS):
+                            raise ValueError("Belegart besitzt Samba-Freigaben; Entfernung blockiert")
+                        c.execute("DELETE FROM company_types WHERE company_id=?",(ident,))
+                        c.executemany("INSERT INTO company_types(company_id,doc_type) VALUES (?,?)",[(ident,t) for t in selected])
+                    elif self.path=="/company-user-create":
+                        user=get("username").strip()
+                        if not company_admin.USER.fullmatch(user):raise ValueError("Ungültiger SMB-Benutzername")
+                        if c.execute("SELECT 1 FROM smb_accounts WHERE username=?",(user,)).fetchone():raise ValueError("SMB-Benutzer existiert bereits")
+                        response=samba_call({"action":"company-user-create","username":user,"password":get("password")})
+                        if not response.get("ok"):raise ValueError(response.get("error","SMB-Benutzer konnte nicht angelegt werden"))
+                        c.execute("INSERT INTO smb_accounts(username) VALUES (?)",(user,))
+                    elif self.path=="/company-access":
+                        company_admin.change_access(c,int(get("company_id")),get("username"),get("role"))
+                    elif self.path=="/company-provision":
+                        specs=company_admin.share_specs(c,int(get("company_id")))
+                        response=samba_call({"action":"company-sync-shares","specs":specs})
+                        if not response.get("ok"):raise ValueError(response.get("error","Samba-Freigaben konnten nicht angelegt werden"))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Firmenverwaltung: Fehler</h1><p>"+html.escape(str(exc))+"</p><a href='/companies'>Zurück</a>",400)
+            self.send_response(303);self.send_header("Location","/companies");self.end_headers()
+            return
         if self.path=="/retention":
             try:
                 save_retention(DB,int(get("days")))
