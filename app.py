@@ -18,6 +18,7 @@ from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
 import company_admin
 import company_processing
+import review_queue
 
 DATA=Path(os.getenv("QRSCAN_DATA","/var/lib/qrscan"))
 ROOT=Path(os.getenv("QRSCAN_SHARE_ROOT","/srv/samba-shares")).resolve()
@@ -137,8 +138,41 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
-        if route.path not in ("/","/jobs","/datev-review","/companies"):return self.page("Nicht gefunden",404)
+        if route.path not in ("/","/jobs","/datev-review","/companies","/review"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
+        if route.path=="/review":
+            params=parse_qs(route.query)
+            company=params.get("company",[""])[0]
+            doctype=params.get("type",[""])[0]
+            state=params.get("state",["active"])[0]
+            if state not in ("active",*review_queue.STATES):state="active"
+            with db() as c:
+                firms=c.execute("SELECT id,code FROM companies ORDER BY code").fetchall()
+                types=company_admin.TYPES
+                try:items=review_queue.records(c,company,doctype,state)
+                except ValueError:return self.page("Ungültige Filter",400)
+            esc=lambda v:html.escape(str(v),quote=True)
+            page="<header><h1>PDF-Prüfwarteschlange</h1><a href='/companies'>Firmenverwaltung</a></header>"
+            page+="<section><form method='get' action='/review'><label>Firma</label><select name='company'><option value=''>Alle Firmen</option>"
+            for cid,code in firms:
+                page+="<option value='"+str(cid)+"'"+(" selected" if company==str(cid) else "")+">"+esc(code)+"</option>"
+            page+="</select><label>Belegart</label><select name='type'><option value=''>Alle Belegarten</option>"
+            for typ in types:
+                page+="<option value='"+esc(typ)+"'"+(" selected" if doctype==typ else "")+">"+esc(typ)+"</option>"
+            page+="</select><label>Prüfstatus</label><select name='state'>"
+            for key,title in (("active","Offen und in Bearbeitung"),("open","Offen"),("in_progress","In Bearbeitung"),("resolved","Als erledigt markiert"),("dismissed","Verworfen")):
+                page+="<option value='"+key+"'"+(" selected" if state==key else "")+">"+title+"</option>"
+            page+="</select><button>Filtern</button></form></section>"
+            page+="<section><h2>Prüffälle ("+str(len(items))+")</h2><p class='small'>Die Einstufung ändert keine PDF-Datei und löst keine DATEV-Übertragung aus. Eine Erledigt-Markierung bestätigt keine erfolgreiche DATEV-Übertragung.</p>"
+            for item in items:
+                page+="<article><h3>"+esc(item["filename"])+"</h3><p>"+esc(item["company"])+" · "+esc(item["doctype"])+" · "+esc(item["severity"])+" · "+esc(item["category"])+"</p>"
+                page+="<p>"+esc(item["message"])+"</p><p class='small'>"+esc(item["updated"])+" · Status: "+esc(item["state"])+"</p>"
+                page+="<form method='post' action='/review-update'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Prüfstatus</label><select name='state'>"
+                for key,title in (("open","Offen"),("in_progress","In Bearbeitung"),("resolved","Erledigt"),("dismissed","Verworfen")):
+                    page+="<option value='"+key+"'"+(" selected" if item["state"]==key else "")+">"+title+"</option>"
+                page+="</select><label>Prüfnotiz</label><textarea name='note' maxlength='1000' rows='3'>"+esc(item["note"])+"</textarea><button>Prüfstatus speichern</button></form></article><hr>"
+            page+="</section>"
+            return self.page(page)
         if route.path=="/companies":
             params=parse_qs(route.query)
             try:cid=int(params.get("company_id",["0"])[0])
@@ -200,7 +234,7 @@ class Handler(BaseHTTPRequestHandler):
                 ON p.id=l.profile_id WHERE l.profile_id IS NULL""").fetchone()[0]
             firms=c.execute("SELECT COUNT(*) FROM companies").fetchone()[0]
         summary=("<header><h1>QR Scan Manager</h1><nav><a href='/companies'>Firmen & Benutzer</a> · "
-                 "<a href='/jobs'>Aufträge & Fehler</a> · <a href='/datev-review'>DATEV-Prüfbereich</a></nav></header>"
+                 "<a href='/jobs'>Aufträge & Fehler</a> · <a href='/review'>PDF-Prüffälle</a> · <a href='/datev-review'>DATEV-Prüfbereich</a></nav></header>"
                  "<section><h2>Übersicht</h2><p>Firmen: "+str(firms)+" · Aktive Profildatensätze: "
                  +str(profile_count)+"</p><p>Die Verarbeitung wird unter "
                  "<a href='/companies'>Firmen & Benutzer</a> konfiguriert.</p></section>")
@@ -214,7 +248,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -223,6 +257,15 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/review-update":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    review_queue.set_case(c,get("signature"),get("state"),get("note"))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Prüfwarteschlange: Fehler</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",400)
+            self.send_response(303);self.send_header("Location","/review");self.end_headers();return
         if self.path=="/password":
             if not self.password_needed():return self.page("Bereits eingerichtet",403)
             value=get("password")
