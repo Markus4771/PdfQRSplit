@@ -138,6 +138,10 @@ class Handler(BaseHTTPRequestHandler):
     def password_form(self,msg=""):
         self.page("<h1>Administratorpasswort ändern</h1><p>"+html.escape(msg)+"</p><section><form method='post' action='/password'><label>Neues Passwort (mindestens 12 Zeichen)</label><input type='password' name='password' minlength='12' required><label>Wiederholen</label><input type='password' name='confirm' minlength='12' required><button>Passwort ändern</button></form></section>")
     def do_GET(self):
+        if urlsplit(self.path).path=="/":
+            principal=self.actor()
+            if principal and principal[0]!="admin":
+                self.send_response(303);self.send_header("Location","/review");self.end_headers();return
         if not self.guard():return
         route=urlsplit(self.path)
         if route.path=="/company-ui.js":
@@ -259,7 +263,7 @@ class Handler(BaseHTTPRequestHandler):
                 try:items=review_queue.records(c,company,doctype,state,allowed_companies=permitted)
                 except ValueError:return self.page("Ungültige Filter",400)
             esc=lambda v:html.escape(str(v),quote=True)
-            page="<header><h1>PDF-Prüfwarteschlange</h1><a href='/companies'>Firmenverwaltung</a></header>"
+            page="<header><h1>PDF-Prüfwarteschlange</h1>"+("<a href='/companies'>Firmenverwaltung</a>" if self.actor()[0]=="admin" else "<a href='/datev-review'>DATEV-Prüfbereich</a>")+"</header>"
             page+="<section><form method='get' action='/review'><label>Firma</label><select name='company'><option value=''>Alle Firmen</option>"
             for cid,code in firms:
                 page+="<option value='"+str(cid)+"'"+(" selected" if company==str(cid) else "")+">"+esc(code)+"</option>"
@@ -323,7 +327,7 @@ class Handler(BaseHTTPRequestHandler):
                 lines.append("<p><b>"+html.escape(digest[:16])+"</b> | Quelle: "+html.escape(source or "")+
                              " | Vergleich: "+("Geschützt" if actor[0]!="admin" else html.escape((match or "")[:16]))+
                              " | "+("Prüfdatei vorhanden: " if present else "Prüfdatei fehlt: ")+html.escape(path or "")+"</p>")
-            return self.page("<header><h1>DATEV-Prüfbereich</h1><a href='/jobs'>Aufträge & Fehler</a></header><section>"+
+            return self.page("<header><h1>DATEV-Prüfbereich</h1>"+("<a href='/jobs'>Aufträge & Fehler</a>" if actor[0]=="admin" else "<a href='/review'>PDF-Prüffälle</a>")+"</header><section>"+
                 ("".join(lines) or "Keine Verdachtsfälle")+"</section>")
         if self.path=="/jobs":
             with db(): pass
