@@ -188,3 +188,7 @@ Firma: mehrere SMB-Benutzer mittels Checkbox auswählen, bestehende Rollen beibe
 ## 14.10.2026: Belegart im Auswahlfenster bearbeiten
 
 Die Firmenverwaltung zeigt jetzt je Firma ein Dropdown für „Firmenstandard“ oder einen aktiven DATEV-Belegtyp. Erst nach „Optionen bearbeiten“ erscheint **genau ein** Formular mit QR-Trennung, Trennblattbehandlung, Leerseiten, Rändern, OCR und DATEV-Sicherheitsmodus. Nach „Einstellungen speichern“ kehrt die GUI zur selben Firma/Belegart zurück. Für den nächsten Belegtyp erneut auswählen. Speicherstruktur, individuelle Überschreibungen und automatische Firmenprofile bleiben erhalten. Änderungen in `company_processing.py`, `company_admin.py`, `app.py`, `test_company_processing.py`. Installation mit `git pull --ff-only && bash install.sh`. Noch nicht live auf dem Scan-Server getestet.
+
+## 14.10.2026: Belegart-Auswahl ohne Bearbeiten-Button
+
+Der zusätzliche Button „Optionen bearbeiten“ entfällt. Die Auswahlbox startet bei Änderung automatisch eine GET-Anfrage und lädt die zugehörigen Checkboxen. Der POST-Button „Einstellungen speichern“ bleibt ausdrücklich erforderlich. Die Oberfläche verwendet ein gleichursprüngliches kleines Skript über /company-ui.js und CSP `script-src 'self'`; kein Inline-JavaScript. Bei abgeschaltetem JavaScript wird ein Ersatzbutton angezeigt. Vor dem Wechsel ungespeicherte Änderungen speichern. Update: git pull --ff-only && bash install.sh.
