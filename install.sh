@@ -48,6 +48,8 @@ install -m 0755 diagnose_qr.py /opt/qrscan/diagnose_qr.py
 install -m 0755 watcher.py /opt/qrscan/watcher.py
 install -m 0644 jobs_ui.py /opt/qrscan/jobs_ui.py
 install -m 0644 profile_settings.py /opt/qrscan/profile_settings.py
+install -m 0644 company_admin.py /opt/qrscan/company_admin.py
+install -m 0644 test_company_admin.py /opt/qrscan/test_company_admin.py
 install -m 0644 safe_publish.py /opt/qrscan/safe_publish.py
 install -m 0644 datev_handoff.py /opt/qrscan/datev_handoff.py
 install -m 0644 original_archive.py /opt/qrscan/original_archive.py
@@ -243,7 +245,7 @@ systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
-/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive
+/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive test_company_admin
 echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
 if ! bash ./install_fluent_bit.sh; then
   echo "WARNUNG: Fluent Bit konnte nicht installiert/aktualisiert werden; QR Scan Manager bleibt betriebsbereit." >&2
