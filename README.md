@@ -368,3 +368,7 @@ Der zusätzliche Button „Optionen bearbeiten“ entfällt. Die Auswahlbox star
 ## 14.10.2026 – Erweiterte Belegart-Einstellungen
 
 Der Leerseiten-Schwellwert (maximaler Schwarzanteil, 0–2 %), OCR-Sprache (Deutsch / Englisch / kombiniert), OCR-Ausgabe (PDF / PDF/A), automatische Seitendrehung und Begradigung sind jetzt ebenfalls im auswählbaren Firmenstandard und im Belegart-Editor verfügbar. Bestehende gespeicherte Datensätze bleiben kompatibel und erhalten für neue Felder zunächst die bisherigen Vorgaben: 0,5 %, deu+eng, PDF, automatische Drehung/Begradigung deaktiviert. Die Werte werden bei Firmenprofil-Synchronisation auf die bisherigen `profiles`-Spalten geschrieben. Ein expliziter Speichervorgang ist weiterhin erforderlich. `company_processing.py`, `app.py` und `test_company_processing.py` angepasst. Auf dem Server noch nicht getestet.
+
+## QR-Trenncode in Firmenverwaltung (14.10.2026)
+
+Der bisher global gespeicherte QR-Trenncode wird nur noch unter `/companies` oben angezeigt und bearbeitet. Auf der Hauptseite entfällt die doppelte Einstellung. Es bleibt derselbe Datensatz `settings.qr_text` für sämtliche manuellen und firmenverwalteten Profile; die Verarbeitungslogik ändert sich nicht. Speichern führt wieder zur Firmenverwaltung. Für unterschiedliche QR-Codes pro Firma ist eine spätere getrennte Funktion nötig.
