@@ -75,9 +75,13 @@ def notify(con,signature,profile_id,status,details,filename):
         WHERE l.profile_id=? AND b.email<>'' ORDER BY b.email""",(profile_id,)).fetchall()
     if not recipients:return False
     subject="[PdfQRSplit] "+("FEHLER" if event!="warning" else "WARNUNG")+" – "+row[0]+" / "+row[1]
-    body=("Firma: "+row[0]+"\\nBelegart: "+row[1]+"\\nPDF: "+Path(filename).name+
-        "\\nStatus: "+status+"\\nKategorie: "+category+"\\nFehler: "+message[:1000]+
-        "\\nAuftrag: "+signature+"\\nWeitere Informationen in der PDF-Prüfwarteschlange.\\n")
+    body=chr(10).join([
+        "Firma: "+row[0], "Belegart: "+row[1],
+        "PDF: "+Path(filename).name, "Status: "+status,
+        "Kategorie: "+category, "Fehler: "+message[:1000],
+        "Auftrag: "+signature,
+        "Weitere Informationen in der PDF-Prüfwarteschlange.", ""
+    ])
     any_sent=False
     for username,email in recipients:
         personal_event=event+":"+username
