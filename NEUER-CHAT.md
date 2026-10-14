@@ -176,3 +176,7 @@ Github ergänzt: `company_admin.py` (SQLite-Migration, Firmen, DATEV-Typen, Samb
 ## 14.10.2026 – Firmenübersicht sichtbar vor Formularen
 
 Nutzer meldete: `companies` SQLite enthält Firmen `Test` und `Juhu`, aber die GUI scheint sie nicht anzuzeigen. `company_admin.render` gibt nun **zuerst** die Übersicht mit Anzahl und Sprunglinks auf jede Firma sowie die einzelnen Firmenkarten mit Belegarten/Berechtigungen aus; Formulare für neue Firmen und SMB-Konten kommen danach. Datenbank wird dabei nicht verändert. Nach `git pull --ff-only && bash install.sh` Seite `/companies` mit Strg+F5 laden. Keine bestehende Firma neu anlegen.
+
+## 14.10.2026 – Firmenbenutzer per Checkbox und Löschfunktion
+
+Firma: mehrere SMB-Benutzer mittels Checkbox auswählen, bestehende Rollen beibehalten, neue Auswahl mit gewählter Rolle; bereits verwaltete Samba-Freigaben bei Änderungen synchronisieren. Firmen dürfen nur ohne zugehörige Samba-Freigaben und Verarbeitungsprofile gelöscht werden; Belege werden nie gelöscht. Ein Benutzer kann nur aus dem Verwaltungsregister entfernt werden, wenn er weder einer Firma noch einer Samba-Freigabe zugeordnet ist. Linux-/Samba-Konto wird nicht gelöscht. Neue Routen /company-users-save, /company-delete und /company-user-delete. Test in test_company_admin.py ergänzt. Deployment: git pull --ff-only und bash install.sh. Live-Betrieb noch nicht geprüft.
