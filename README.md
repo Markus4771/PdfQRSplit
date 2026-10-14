@@ -364,3 +364,7 @@ Die Firmenverwaltung zeigt jetzt je Firma ein Dropdown für „Firmenstandard“
 ## 14.10.2026: Belegart-Auswahl ohne Bearbeiten-Button
 
 Der zusätzliche Button „Optionen bearbeiten“ entfällt. Die Auswahlbox startet bei Änderung automatisch eine GET-Anfrage und lädt die zugehörigen Checkboxen. Der POST-Button „Einstellungen speichern“ bleibt ausdrücklich erforderlich. Die Oberfläche verwendet ein gleichursprüngliches kleines Skript über /company-ui.js und CSP `script-src 'self'`; kein Inline-JavaScript. Bei abgeschaltetem JavaScript wird ein Ersatzbutton angezeigt. Vor dem Wechsel ungespeicherte Änderungen speichern. Update: git pull --ff-only && bash install.sh.
+
+## 14.10.2026 – Erweiterte Belegart-Einstellungen
+
+Der Leerseiten-Schwellwert (maximaler Schwarzanteil, 0–2 %), OCR-Sprache (Deutsch / Englisch / kombiniert), OCR-Ausgabe (PDF / PDF/A), automatische Seitendrehung und Begradigung sind jetzt ebenfalls im auswählbaren Firmenstandard und im Belegart-Editor verfügbar. Bestehende gespeicherte Datensätze bleiben kompatibel und erhalten für neue Felder zunächst die bisherigen Vorgaben: 0,5 %, deu+eng, PDF, automatische Drehung/Begradigung deaktiviert. Die Werte werden bei Firmenprofil-Synchronisation auf die bisherigen `profiles`-Spalten geschrieben. Ein expliziter Speichervorgang ist weiterhin erforderlich. `company_processing.py`, `app.py` und `test_company_processing.py` angepasst. Auf dem Server noch nicht getestet.
