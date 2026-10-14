@@ -61,6 +61,57 @@ def main():
     entries=read()
     if action=="list":
         print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no","datev_protected":v.get("comment")=="QRSCAN-DATEV-READONLY"} for n,v in sorted(entries.items())]}));return
+    if action=="company-user-create":
+        user=request.get("username","");password=request.get("password","")
+        if not isinstance(user,str) or not USER.fullmatch(user) or not isinstance(password,str) or not 12<=len(password)<=256:
+            fail("Ungültige SMB-Kontodaten")
+        try:
+            pwd.getpwnam(user)
+            fail("Linux-Benutzer existiert bereits; Konto nicht verändert")
+        except KeyError:pass
+        run(["useradd","--system","--no-create-home","--shell","/usr/sbin/nologin",user])
+        result=subprocess.run(["smbpasswd","-s","-a",user],input=password+"\\n"+password+"\\n",capture_output=True,text=True,timeout=20)
+        if result.returncode:fail("SMB-Benutzer konnte nicht eingerichtet werden")
+        print(json.dumps({"ok":True}));return
+    if action=="company-sync-shares":
+        # Changes only explicitly QR Scan Manager-generated shares with strict markers.
+        specs=request.get("specs")
+        if not isinstance(specs,list) or not 1<=len(specs)<=20:fail("Ungültige Freigabenliste")
+        seen=set()
+        for spec in specs:
+            name=spec.get("name") if isinstance(spec,dict) else None
+            readers=spec.get("readers") if isinstance(spec,dict) else None
+            writers=spec.get("writers") if isinstance(spec,dict) else None
+            if not isinstance(name,str) or not NAME.fullmatch(name) or name in seen:
+                fail("Ungültiger oder doppelter Freigabename")
+            seen.add(name)
+            if not isinstance(readers,list) or not isinstance(writers,list) or not readers or len(readers)>32 or len(writers)>32:
+                fail("Mindestens ein berechtigter Leser benötigt")
+            if any(not isinstance(u,str) or not USER.fullmatch(u) for u in readers+writers) or any(u not in readers for u in writers):
+                fail("Ungültige Benutzerberechtigungen")
+            if bool(spec.get("protected")) and writers:fail("Geschützte Freigabe darf nicht beschreibbar sein")
+            for u in readers:
+                try:pwd.getpwnam(u)
+                except KeyError:fail("Unbekannter SMB-Benutzer: "+u)
+            if name in entries and entries[name].get("comment")!="QRSCAN-COMPANY-MANAGED":
+                fail("Freigabename bereits vorhanden; wird nicht übernommen: "+name)
+            path=ROOT/name
+            if path.is_symlink() or (path.exists() and (not path.is_dir() or path.resolve().parent!=ROOT.resolve())):
+                fail("Unsicherer Zielpfad: "+name)
+            if name not in entries and path.exists():fail("Verzeichnis existiert ohne verwaltete Freigabe: "+name)
+        for spec in specs:
+            name=spec["name"];path=ROOT/name
+            path.mkdir(mode=0o2770,parents=False,exist_ok=True)
+            os.chown(path,pwd.getpwnam("qrscan").pw_uid,pwd.getpwnam("qrscan").pw_gid)
+            os.chmod(path,0o2770)
+            entries[name]={"path":str(path),"browseable":"yes","read only":"yes",
+                "valid users":" ".join(sorted(set(spec["readers"]))),
+                "force user":"qrscan","create mask":"0660","directory mask":"2770",
+                "comment":"QRSCAN-COMPANY-MANAGED"}
+            if spec["writers"]:entries[name]["write list"]=" ".join(sorted(set(spec["writers"])))
+            if spec["protected"]:entries[name]["hide unreadable"]="yes"
+        write(entries)
+        print(json.dumps({"ok":True,"count":len(specs)}));return
     name=request.get("name","")
     if not isinstance(name,str) or not NAME.fullmatch(name):fail("Ungültiger Freigabename")
     if action=="create":
