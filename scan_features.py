@@ -77,9 +77,9 @@ def parse_card_text(text):
     """Heuristic OCR draft only; user must confirm before exporting."""
     if not isinstance(text,str):raise ValueError("Ungültiger OCR-Text")
     lines=[line.strip()[:256] for line in text.splitlines() if line.strip()][:20]
-    email_match=re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}",text)
+    email_match=re.search(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",text)
     email=email_match.group(0) if email_match else ""
-    phone_match=re.search(r"(?:\\+?\\d[\\d ()/.-]{6,}\\d)",text)
+    phone_match=re.search(r"(?:\+?\d[\d ()/.-]{6,}\d)",text)
     phone=phone_match.group(0).strip()[:64] if phone_match else ""
     return {"name":lines[0] if lines else "","company":lines[1] if len(lines)>1 else "","email":email,"phone":phone}
 
