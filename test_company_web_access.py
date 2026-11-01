@@ -1,7 +1,7 @@
 import sqlite3
 import base64
 import unittest
-from company_web_access import set_password,authenticate,owns_job
+from company_web_access import set_password,authenticate,owns_job,set_private_role,private_role
 class CompanyWebAccessTests(unittest.TestCase):
     def setUp(self):
         self.con=sqlite3.connect(":memory:")
@@ -14,6 +14,13 @@ class CompanyWebAccessTests(unittest.TestCase):
             INSERT INTO company_profile_links VALUES(1,3);
             INSERT INTO jobs VALUES('aaa',3),('bbb',4);""")
     def tearDown(self):self.con.close()
+    def test_private_roles_default_read_and_manage(self):
+        self.assertEqual(private_role(self.con,"anna"),"read")
+        set_private_role(self.con,"anna","manage")
+        self.assertEqual(private_role(self.con,"anna"),"manage")
+        with self.assertRaises(ValueError):
+            set_private_role(self.con,"anna","admin")
+
     def test_login_and_access(self):
         set_password(self.con,"anna","correct-pass-1234")
         header="Basic "+base64.b64encode(b"anna:correct-pass-1234").decode()
