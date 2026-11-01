@@ -118,7 +118,22 @@ STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-wi
 
 class Handler(BaseHTTPRequestHandler):
     def page(self, content, status=200, unauthorized=False):
-        payload=("<!doctype html><html lang='de'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"+STYLE+"<title>QR Scan Manager</title>"+content+"</html>").encode()
+        path=urlsplit(self.path).path
+        if path=="/private":
+            selected="private"
+        elif path=="/companies":
+            selected="company"
+        else:
+            selected=""
+        if self.actor()[0]=="admin":
+            switch=("<section class='mode-switch' aria-label='Arbeitsbereich'>"
+                "<strong>Arbeitsbereich wählen:</strong> "
+                "<a href='/private'"+(" aria-current='page'" if selected=="private" else "")+">Privat</a> · "
+                "<a href='/companies'"+(" aria-current='page'" if selected=="company" else "")+">Firma / DATEV</a> · "
+                "<a href='/'>Übersicht</a></section>")
+        else:
+            switch=""
+        payload=("<!doctype html><html lang='de'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"+STYLE+"<style>.mode-switch{padding:12px 18px;margin:8px 0}.mode-switch a{display:inline-block;padding:9px 12px;border-radius:7px;text-decoration:none}.mode-switch a[aria-current=page]{background:#263c58;color:white}</style><title>QR Scan Manager</title>"+switch+content+"</html>").encode()
         self.send_response(status)
         self.send_header("Content-Type","text/html; charset=utf-8")
         self.send_header("Content-Length",str(len(payload)))
@@ -371,7 +386,7 @@ class Handler(BaseHTTPRequestHandler):
                 lines.append("<p><b>"+html.escape(digest[:16])+"</b> | Quelle: "+html.escape(source or "")+
                              " | Vergleich: "+("Geschützt" if actor[0]!="admin" else html.escape((match or "")[:16]))+
                              " | "+("Prüfdatei vorhanden: " if present else "Prüfdatei fehlt: ")+html.escape(path or "")+"</p>")
-            return self.page("<header><h1>DATEV-Prüfbereich</h1>"+("<a href='/jobs'>Aufträge & Fehler</a>" if actor[0]=="admin" else "<a href='/review'>PDF-Prüffälle</a>")+"</header><section>"+
+            return self.page("<header><h1>DATEV-Prüfbereich</h1>"+("<a href='/private'>Private Scanprofile</a> · <a href='/jobs'>Aufträge & Fehler</a>" if actor[0]=="admin" else "<a href='/review'>PDF-Prüffälle</a>")+"</header><section>"+
                 ("".join(lines) or "Keine Verdachtsfälle")+"</section>")
         if self.path=="/jobs":
             with db(): pass
