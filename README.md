@@ -40,6 +40,14 @@ In `/companies` unter **PDF-Verarbeitung** bietet die neue Auswahl *Scanmodus* d
 
 Die Vorlagen sind **keine globale Umschaltung**. Für getrennte Abläufe eigene Firmen/Profil- und Freigabezuordnungen verwenden. Bestehende DATEV-Profile werden nicht automatisch geändert. Auch im Privatmodus verwendet die Firmenverwaltung bislang das vorhandene Vier-Freigaben-Schema Eingang/Archiv/Ausgang/LOG; eine vereinfachte Zwei-Freigaben-Anlage ist noch nicht umgesetzt.
 
+## Private Benutzer mit mehreren Scanfreigaben (Entwicklungsbranch)
+
+Unter `/private` kann der Administrator einen bereits registrierten SMB-Benutzer wählen und beliebig viele unterschiedliche Eingangs-/Ausgangspaare als private Verarbeitungsprofile anlegen. Jeder Eintrag wird über die bestehende `profiles`-Tabelle automatisch vom PDF-Watcher verarbeitet. Private Profile starten mit OCR und Leerseitenentfernung, ohne DATEV-Modus und ohne QR-Trennung. Die Profile sind separat in `private_scan_profiles` dem SMB-Benutzer zugeordnet, ohne Firmen- oder DATEV-Daten zu ändern.
+
+Voraussetzung: SMB-Benutzer und seine Eingangs- und Ausgangsfreigaben sind bereits im bestehenden Samba-Manager eingerichtet. Der Dialog legt **keine neuen SMB-Konten oder Freigaben** an und ändert keine Samba-ACLs. Der Privatmodus prüft die vorhandenen Freigaben/Benutzer und verweigert den Zugriff auf geschützte DATEV-Freigaben. Mehrere Eingänge/Ausgänge pro Benutzer sind möglich, jedoch darf dasselbe Eingangs-/Ausgangspaar nicht doppelt angelegt werden. Die Verwaltung von einzelnen Benutzer-Weblogins für private Aufträge, automatische Samba-Freigabeanlage und die Bearbeitung privater Profile sind weitere Ausbaustufen.
+
+Vor Installation Snapshot/Backup anfertigen und die neuen Tests durchführen (`test_private_scans`). Nicht ungeprüft produktiv einsetzen.
+
 ## Firmenbenutzer und Benachrichtigungen
 
 Administratoren erfassen bei einem SMB-Benutzer eine **E-Mail-Adresse** und vergeben zusätzlich ein **eigenes Web-Passwort** (getrennt vom Samba-Passwort). Benutzer werden über Firmen-Checkboxen mit entsprechender Rolle zugeordnet.
