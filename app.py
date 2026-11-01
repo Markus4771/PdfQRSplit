@@ -152,7 +152,7 @@ class Handler(BaseHTTPRequestHandler):
     def guard(self):
         actor=self.actor()
         route=urlsplit(self.path).path
-        if actor and (actor[0]=="admin" or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf"))):
+        if actor and (actor[0]=="admin" or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private"))):
             return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
@@ -164,7 +164,7 @@ class Handler(BaseHTTPRequestHandler):
         if urlsplit(self.path).path=="/":
             principal=self.actor()
             if principal and principal[0]!="admin":
-                self.send_response(303);self.send_header("Location","/review");self.end_headers();return
+                self.send_response(303);self.send_header("Location","/private" if not principal[1] else "/review");self.end_headers();return
         if not self.guard():return
         route=urlsplit(self.path)
         if route.path=="/" and self.workspace_mode()=="private":
@@ -387,7 +387,12 @@ class Handler(BaseHTTPRequestHandler):
             if self.password_needed():return self.password_form()
             with db() as c:
                 response=samba_call({"action":"list"})
-                content=private_scans.render(c,response.get("shares",[]) if response.get("ok") else [])
+                if self.actor()[0]=="admin":
+                    content=private_scans.render(c,response.get("shares",[]) if response.get("ok") else [])
+                else:
+                    username=self.actor()[0]
+                    assigned=c.execute("SELECT x.label,p.input_share,p.output_share FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id WHERE x.username=? ORDER BY x.label",(username,)).fetchall()
+                    content="<header><h1>Meine Scanprofile</h1></header><section>"+("".join("<p><strong>"+html.escape(label)+"</strong>: "+html.escape(source)+" → "+html.escape(dest)+"</p>" for label,source,dest in assigned) or "<p>Keine privaten Scanprofile vorhanden.</p>")+"</section>"
             return self.page(content)
         if route.path=="/companies":
             params=parse_qs(route.query)
@@ -471,7 +476,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -480,6 +485,19 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/config-user-web-password":
+            if self.password_needed():return self.password_form()
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            try:
+                with db() as c:
+                    company_web_access.set_password(c,get("username"),get("password"))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Webpasswort nicht gesetzt</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/configuration")
+            self.end_headers()
+            return
         if self.path=="/config-user-email":
             if self.password_needed():return self.password_form()
             if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
