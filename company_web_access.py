@@ -8,6 +8,7 @@ import os
 def migrate(con):
     con.execute("""CREATE TABLE IF NOT EXISTS user_web_credentials(
         username TEXT PRIMARY KEY,salt TEXT NOT NULL,digest TEXT NOT NULL)""")
+    con.execute("CREATE TABLE IF NOT EXISTS private_web_roles(username TEXT PRIMARY KEY,role TEXT NOT NULL DEFAULT 'read')")
 
 def set_password(con,username,password):
     migrate(con)
@@ -39,3 +40,15 @@ def owns_job(con,signature,companies):
     if not companies:return False
     return bool(con.execute("""SELECT 1 FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id
          WHERE j.signature=? AND l.company_id IN ("""+",".join("?" for _ in companies)+")",(signature,*sorted(companies))).fetchone())
+
+def private_role(con,username):
+    migrate(con)
+    row=con.execute("SELECT role FROM private_web_roles WHERE username=?",(username,)).fetchone()
+    return row[0] if row and row[0] in ("read","manage") else "read"
+
+def set_private_role(con,username,role):
+    migrate(con)
+    if role not in ("read","manage"):raise ValueError("Ungültige Privatrolle")
+    if not con.execute("SELECT 1 FROM smb_accounts WHERE username=?",(username,)).fetchone():
+        raise ValueError("Benutzer existiert nicht")
+    con.execute("INSERT INTO private_web_roles(username,role) VALUES (?,?) ON CONFLICT(username) DO UPDATE SET role=excluded.role",(username,role))
