@@ -2,7 +2,8 @@ import sqlite3
 import tempfile
 import unittest
 from pathlib import Path
-from review_pdf import source_for_case,prepare_draft
+from review_pdf import source_for_case,prepare_draft,prepare_editor_draft
+from review_editor import page_plan,thumbnails
 
 class ReviewPDFTests(unittest.TestCase):
     def setUp(self):
@@ -36,6 +37,18 @@ class ReviewPDFTests(unittest.TestCase):
             self.assertEqual(pdf[0].rotation,90)
         with self.assertRaises(ValueError):
             prepare_draft(self.db,self.signature,self.root/"drafts",self.input,self.archive,"3",0)
+    def test_editor_reorder_and_rotate(self):
+        self.assertEqual(page_plan("2:90,1:180",2),[(1,90),(0,180)])
+        result=prepare_editor_draft(self.db,self.signature,self.root/"drafts",self.input,self.archive,"2:90,1:180")
+        import fitz
+        with fitz.open(result) as pdf:
+            self.assertEqual(pdf.page_count,2)
+            self.assertEqual([p.rotation for p in pdf],[90,180])
+        self.assertEqual(len(thumbnails(self.db,self.signature,self.input,self.archive)),2)
+    def test_editor_rejects_invalid_plans(self):
+        for plan in ("","1:45","1:0,1:90","3:0","0:0","1:0,","1:0;2:0"):
+            with self.subTest(plan=plan),self.assertRaises(ValueError):
+                page_plan(plan,2)
     def test_rejects_foreign_source(self):
         self.db.execute("UPDATE jobs SET file=?",(str(self.root/"foreign.pdf"),))
         with self.assertRaises(FileNotFoundError):
