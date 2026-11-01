@@ -2,7 +2,7 @@ import sqlite3
 import tempfile
 from pathlib import Path
 import unittest
-from scan_features import permitted_profiles,find_document,valid_recipient,business_card_vcard
+from scan_features import permitted_profiles,find_document,valid_recipient,business_card_vcard,parse_card_text
 
 class ScanFeatureTests(unittest.TestCase):
     def setUp(self):
@@ -29,6 +29,12 @@ class ScanFeatureTests(unittest.TestCase):
             with self.assertRaises(ValueError):find_document(self.con,'anna',False,1,'../scan.pdf',tmp)
             (d/'escape.pdf').symlink_to('/etc/passwd')
             with self.assertRaises(FileNotFoundError):find_document(self.con,'anna',False,1,'escape.pdf',tmp)
+    def test_card_ocr_draft(self):
+        found=parse_card_text("Erika Muster\\nMuster GmbH\\nerika@example.org\\n+49 123 456789")
+        self.assertEqual(found["name"],"Erika Muster")
+        self.assertEqual(found["email"],"erika@example.org")
+        self.assertIn("123",found["phone"])
+
     def test_vcard_and_recipients(self):
         self.assertTrue(valid_recipient('name@example.com'))
         self.assertFalse(valid_recipient('name\r\n@example.com'))
