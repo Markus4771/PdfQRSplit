@@ -154,6 +154,11 @@ class Handler(BaseHTTPRequestHandler):
         route=urlsplit(self.path).path
         if actor and (actor[0]=="admin" or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private"))):
             return True
+        if actor and self.command=="POST" and route=="/private-update":
+            with db() as con:
+                if company_web_access.private_role(con,actor[0])=="manage":return True
+        if False:
+            return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
     def password_needed(self):
@@ -476,7 +481,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password","/config-user-role"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -485,6 +490,19 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/config-user-role":
+            if self.password_needed():return self.password_form()
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            try:
+                with db() as c:
+                    company_web_access.set_private_role(c,get("username"),get("role"))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Rolle nicht gespeichert</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/configuration")
+            self.end_headers()
+            return
         if self.path=="/config-user-web-password":
             if self.password_needed():return self.password_form()
             if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
@@ -587,6 +605,11 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path=="/private-update":
             if self.password_needed():return self.password_form()
+            if self.actor()[0]!="admin":
+                with db() as check:
+                    owner=check.execute("SELECT username FROM private_scan_profiles WHERE profile_id=?",(get("id"),)).fetchone()
+                    if not owner or owner[0]!=self.actor()[0] or company_web_access.private_role(check,owner[0])!="manage":
+                        return self.page("Keine Berechtigung",403)
             try:
                 with db() as c:
                     private_scans.update(c,int(get("id")),get("label"),"qr_split" in data,"ocr" in data,"photo_mode" in data,"remove_blank" in data,remove_separators="remove_separators" in data,crop="crop" in data,ocr_rotate="ocr_rotate" in data,ocr_deskew="ocr_deskew" in data,blank_threshold=float(get("blank_threshold").replace(",",".")),ocr_languages=get("ocr_languages"),ocr_output=get("ocr_output"))
