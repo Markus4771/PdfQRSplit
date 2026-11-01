@@ -451,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-smb-password"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -460,6 +460,23 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/private-smb-password":
+            if self.password_needed():return self.password_form()
+            name=get("share_name")
+            answer=samba_call({"action":"list"})
+            share=next((x for x in answer.get("shares",[]) if x.get("name")==name),None)
+            if not answer.get("ok") or not share or share.get("datev_protected"):
+                return self.page("Freigabe nicht zulässig",403)
+            with db() as c:
+                if not c.execute("SELECT 1 FROM private_scan_profiles WHERE username=?",(share.get("user"),)).fetchone():
+                    return self.page("Kein privater Benutzer",403)
+            outcome=samba_call({"action":"password","name":name,"password":get("password")})
+            if not outcome.get("ok"):
+                return self.page("<h1>SMB-Passwortänderung fehlgeschlagen</h1><p>"+html.escape(outcome.get("error","Fehler"))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
         if self.path=="/private-share-create":
             if self.password_needed():return self.password_form()
             result=samba_call({"action":"create","name":get("share_name"),"user":get("smb_user"),"password":get("smb_password"),"writable":"writable" in data,"datev_protected":False})
@@ -490,7 +507,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.password_needed():return self.password_form()
             try:
                 with db() as c:
-                    private_scans.update(c,int(get("id")),get("label"),"qr_split" in data,"ocr" in data,"photo_mode" in data,"remove_blank" in data)
+                    private_scans.update(c,int(get("id")),get("label"),"qr_split" in data,"ocr" in data,"photo_mode" in data,"remove_blank" in data,remove_separators="remove_separators" in data,crop="crop" in data,ocr_rotate="ocr_rotate" in data,ocr_deskew="ocr_deskew" in data,blank_threshold=float(get("blank_threshold").replace(",",".")),ocr_languages=get("ocr_languages"),ocr_output=get("ocr_output"))
                     c.commit()
             except (ValueError,sqlite3.Error) as exc:
                 return self.page("<h1>Profiländerung fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p>",400)
