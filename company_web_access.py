@@ -32,7 +32,8 @@ def authenticate(con,authorization):
         digest=hashlib.pbkdf2_hmac("sha256",password.encode(),bytes.fromhex(record[0]),600000)
         if not hmac.compare_digest(digest,bytes.fromhex(record[1])):return None
         allowed={r[0] for r in con.execute("SELECT company_id FROM company_access WHERE username=? AND role IN ('read','input','write','admin')",(username,))}
-        private=con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(username,)).fetchone()
+        has_private_table=con.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='private_scan_profiles'").fetchone()
+        private=con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(username,)).fetchone() if has_private_table else None
         return (username,allowed) if allowed or private else None
     except (ValueError,UnicodeError,OverflowError,binascii.Error):return None
 
