@@ -1,3 +1,14 @@
+## Scan-Aktionen in Privat und Firma (Entwicklungsstand)
+
+Die Seite `/scan-actions` steht authentifizierten Privat- und Firmenbenutzern zur Verfügung. Sie enthält:
+
+- **Scan per E-Mail:** ein fertig verarbeitetes PDF/JPEG/PNG oder eine vCard aus einer berechtigten Ausgangsfreigabe auswählen; Empfänger eingeben und die Datei über die vorhandenen TLS-gesicherten SMTP-Einstellungen senden (maximal 20 MB). DATEV-Profile sind vom direkten Versand ausgeschlossen; der Scan wird nicht gelöscht. SMTP wird im Menü Benachrichtigungen konfiguriert. E-Mail-Versand erfolgt nur auf ausdrückliche Benutzeraktion.
+- **Visitenkarten:** JPEG/PNG-Visitenkarte über einen vorhandenen Scanauftrag einscannen, Bilddatei im Ausgangs-Share wählen und mit Tesseract OCR vorläufige Kontaktfelder erkennen. Nach manueller Kontrolle lässt sich eine vCard (`.vcf`) exportieren. Die automatische Erkennung kann Fehler enthalten und schreibt noch nicht in eine externe Kontaktverwaltung.
+
+Die Funktion nutzt die bereits bestehenden privaten und firmenbezogenen Profilrechte; direkte Dateipfade außerhalb eines freigegebenen Ausgangs-Shares sind nicht erlaubt. Der Webserver muss im geschützten Netz und bei nichtlokaler Nutzung hinter HTTPS betrieben werden.
+
+**Nicht im Produktivbetrieb freigegeben:** Das neue Webformular, SMTP-Versand und Visitenkarten-OCR müssen auf einer Debian-Testinstallation geprüft werden. Ein Scan an E-Mail ist kein DATEV-Belegtransfer. Firmenscans ohne DATEV können bereits mit `datev_mode=0` als Büro-Scan betrieben werden; bestehende DATEV-Profile werden nicht automatisch umgestellt.
+
 ## Rollen für private Web-Zugänge
 
 Unter `/configuration` können Administratoren für registrierte Benutzer die private Web-Rolle `read` (Standard) oder `manage` (eigene private PDF-Einstellungen bearbeiten) setzen. Die globale Administrationsrolle bleibt dem separaten `admin`-Zugang vorbehalten. Beide Rollen nutzen individuelle Webpasswörter und sind von Samba- und Firmenrechten getrennt. Private Benutzer sehen auf `/private` nur ihre eigenen Scanprofile; `manage` erlaubt das Ändern von QR-/OCR-/Foto-/PDF-Optionen nur für eigene Profile. Die Änderung von SMB-Freigaben, Benutzerpasswörtern, Firmenprofilen oder DATEV-Rechten bleibt Administratoren vorbehalten. Vor dem Produktiveinsatz Zugriffstests mit mehreren Benutzern durchführen. Kein HTTP ohne TLS über ungeschützte Netze.
