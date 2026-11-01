@@ -18,6 +18,7 @@ from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
 import company_admin
 import company_processing
+import company_preflight
 import review_queue
 import review_pdf
 import review_editor
@@ -121,7 +122,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length",str(len(payload)))
         self.send_header("Cache-Control","no-store")
         self.send_header("X-Frame-Options","DENY")
-        self.send_header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; script-src 'self'")
+        self.send_header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self'; script-src 'self'")
         if unauthorized:self.send_header("WWW-Authenticate",'Basic realm="QR Scan Manager"')
         self.end_headers();self.wfile.write(payload)
     def actor(self):
@@ -145,6 +146,16 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(303);self.send_header("Location","/review");self.end_headers();return
         if not self.guard():return
         route=urlsplit(self.path)
+        if route.path=="/review-editor.js":
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            script=Path("/opt/qrscan/review_editor.js").read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type","application/javascript; charset=utf-8")
+            self.send_header("Content-Length",str(len(script)))
+            self.send_header("Cache-Control","no-store")
+            self.end_headers()
+            self.wfile.write(script)
+            return
         if route.path=="/company-ui.js":
             payload=b'document.querySelectorAll("select[data-auto-submit=belegart]").forEach(s=>s.addEventListener("change",()=>s.form.requestSubmit()));'
             self.send_response(200)
@@ -319,7 +330,8 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:cid=None
             typ=params.get("doc_type",[""])[0]
             with db() as c:
-                content=company_admin.render(c,cid,typ,samba_call({"action":"list"}))
+                share_state=samba_call({"action":"list"})
+                content=company_preflight.render(c,share_state)+company_admin.render(c,cid,typ,share_state)
                 qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
                 content="<section><h2>QR-Trenncode (für alle Firmen)</h2><p class='small'>Gemeinsamer QR-Trenncode für bestehende und neue Verarbeitungsprofile.</p><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section>"+content
             return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
