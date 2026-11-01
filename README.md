@@ -31,6 +31,12 @@ bash install.sh
 
 Nach dem Update Dienste und Tests kontrollieren. Die bisherige lokale Testinstanz läuft unter `http://192.168.0.55:8086/`; andere Server verwenden ihre eigene Adresse.
 
+## Neue Systemübersicht für Firmen und Verarbeitung (Entwicklungsbranch)
+
+In `/companies` erscheint vor den bestehenden Formularen eine kompakte Systemübersicht mit Firmenzahl, SMB-Benutzern und Konfigurationshinweisen. Pro Firma gibt es eine aufklappbare Rechte-Matrix (Benutzer, Rolle, E-Mail hinterlegt) sowie einen Vergleich zwischen effektiven Verarbeitungseinstellungen und gespeicherten Profilen (QR-Trennung, OCR, DATEV-Schutz, Eingang/Ausgang). Fehlende Samba-Freigaben, nicht erreichbare Samba-Verwaltung und fehlende Profile werden ausdrücklich kenntlich gemacht. Die Ansicht liest nur Daten und führt **keine automatische Freigabenänderung, Profil-Synchronisation oder DATEV-Übergabe** durch. 
+
+Warnungen über Konfigurationen sind keine bestätigten Laufzeitfehler. Ein leerer Hinweisbereich bedeutet nicht, dass Scanner, Samba, OCR oder DATEV vollständig geprüft wurden. Die bisherige Firmen-/Benutzerverwaltung und deren Berechtigungen bleiben unverändert. Vor Deployment Backup von `/var/lib/qrscan`, Samba-Konfiguration und PDF-Ausgängen anfertigen; neue Tests `python3 -m unittest test_company_preflight` ausführen.
+
 ## Firmenbenutzer und Benachrichtigungen
 
 Administratoren erfassen bei einem SMB-Benutzer eine **E-Mail-Adresse** und vergeben zusätzlich ein **eigenes Web-Passwort** (getrennt vom Samba-Passwort). Benutzer werden über Firmen-Checkboxen mit entsprechender Rolle zugeordnet.
