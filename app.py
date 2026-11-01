@@ -435,7 +435,7 @@ class Handler(BaseHTTPRequestHandler):
                 content=company_preflight.render(c,share_state)+company_admin.render(c,cid,typ,share_state)
                 qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
                 content="<section><h2>QR-Trenncode (für alle Firmen)</h2><p class='small'>Gemeinsamer QR-Trenncode für bestehende und neue Verarbeitungsprofile.</p><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section>"+content
-            return self.page("<header><h1>Firmenverwaltung</h1><a href='/private'>Private Scanaufträge</a> · <a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
+            return self.page("<header><h1>Firmenverwaltung</h1><a href='/private'>Private Scanaufträge</a> · <a href='/configuration'>Zur Konfiguration</a> · <a href='/scan-actions'>Scan per E-Mail / Visitenkarte</a></header>"+content+"<script src='/company-ui.js' defer></script>")
         if self.path=="/datev-review":
             entries=[]
             registry=DATA/"datev.sqlite3"
