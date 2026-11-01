@@ -31,6 +31,15 @@ bash install.sh
 
 Nach dem Update Dienste und Tests kontrollieren. Die bisherige lokale Testinstanz läuft unter `http://192.168.0.55:8086/`; andere Server verwenden ihre eigene Adresse.
 
+## Private Scanprofile ohne DATEV
+
+In `/companies` unter **PDF-Verarbeitung** bietet die neue Auswahl *Scanmodus* die Vorlagen **Privat / Büro** und **DATEV**. Die Auswahl ändert nur die sichtbaren Formularoptionen. Erst **Einstellungen speichern** schreibt die firmenspezifischen Einstellungen; vorhandene Verarbeitungsprofile und Daten bleiben bis dahin unverändert.
+
+* Privat / Büro: `datev_mode=0`, QR-Trennung standardmäßig aus, Leerseitenentfernung und OCR an. QR-Trennung kann je Profil separat aktiviert werden. Keine DATEV-Reservierung und keine DATEV-Übergabe.
+* DATEV: `datev_mode=1` und QR-Trennung an. Der separate, geschützte DATEV-Ausgang und die Dublettensperre bleiben erforderlich.
+
+Die Vorlagen sind **keine globale Umschaltung**. Für getrennte Abläufe eigene Firmen/Profil- und Freigabezuordnungen verwenden. Bestehende DATEV-Profile werden nicht automatisch geändert. Auch im Privatmodus verwendet die Firmenverwaltung bislang das vorhandene Vier-Freigaben-Schema Eingang/Archiv/Ausgang/LOG; eine vereinfachte Zwei-Freigaben-Anlage ist noch nicht umgesetzt.
+
 ## Firmenbenutzer und Benachrichtigungen
 
 Administratoren erfassen bei einem SMB-Benutzer eine **E-Mail-Adresse** und vergeben zusätzlich ein **eigenes Web-Passwort** (getrennt vom Samba-Passwort). Benutzer werden über Firmen-Checkboxen mit entsprechender Rolle zugeordnet.
