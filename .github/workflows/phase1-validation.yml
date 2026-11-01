@@ -1,0 +1,20 @@
+name: PdfQRSplit Phase 1 validation
+on:
+  push:
+    branches: [feature/private-users-multi-shares]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  python-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile Python sources
+        run: python -m compileall -q .
+      - name: Security and private profile regression tests
+        run: python -m unittest -v test_private_scans test_company_web_access test_config_users
