@@ -15,6 +15,7 @@ import time
 from pathlib import Path
 
 from worker import run
+from photo_scans import EXTENSIONS,publish_photo
 from original_archive import prepare_archive,remove_archived_source
 from profile_logs import write_job
 from notifications import notify
@@ -93,7 +94,9 @@ def once(con,profile,shares,seen):
         logging.warning("Profile %s: invalid/inaccessible share mapping",name);return
     if not os.access(source,os.R_OK|os.X_OK) or not os.access(destination,os.W_OK|os.X_OK):
         logging.warning("Profile %s: missing filesystem permissions",name);return
-    for path in sorted(source.glob("*.pdf")):
+    photo_row=con.execute("SELECT photo_mode FROM private_scan_profiles WHERE profile_id=?",(ident,)).fetchone() if con.execute("SELECT 1 FROM sqlite_master WHERE name='private_scan_profiles'").fetchone() else None
+    allowed={".pdf"} | (EXTENSIONS if photo_row and photo_row[0] and not switches[10] else set())
+    for path in sorted(p for p in source.iterdir() if p.suffix.lower() in allowed):
         try:
             if path.is_symlink() or not path.is_file():continue
             stat=path.stat()
@@ -104,8 +107,9 @@ def once(con,profile,shares,seen):
             if stat.st_size==0 or time.monotonic()-seen[key][1]<MIN_AGE or time.time()-stat.st_mtime<MIN_AGE:continue
             # Check PDF structure before processing or declaring job finished.
             import fitz
-            with fitz.open(path) as doc:
-                if doc.page_count<1:continue
+            if path.suffix.lower()==".pdf":
+                with fitz.open(path) as doc:
+                    if doc.page_count<1:continue
             digest=fingerprint(path,stat,ident)
             latest=path.stat()
             if (stat.st_ino,stat.st_size,stat.st_mtime_ns)!=(latest.st_ino,latest.st_size,latest.st_mtime_ns):continue
@@ -173,7 +177,13 @@ def once(con,profile,shares,seen):
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
                     source_sha256=file_hash(snapshot).hex()
-                    result=run(snapshot,destination,qr,opts,output_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0))
+                    name_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0)
+                    if path.suffix.lower() in EXTENSIONS:
+                        if not (photo_row and photo_row[0]) or opts["datev_mode"]:
+                            raise ValueError("Photo scan forbidden for this profile")
+                        result=publish_photo(snapshot,destination,name_stem)
+                    else:
+                        result=run(snapshot,destination,qr,opts,output_stem=name_stem)
                 # Preserve the archive before removing an original from the input.
                 # Only DATEV profiles with an exclusive input share qualify.
                 archive_ready=None
@@ -254,7 +264,7 @@ def main():
                     last_cleanup=time.monotonic()
                 shares=get_shares()
                 profiles=configs(con)
-                active={(p[0],str(shares[p[2]]/file.name)) for p in profiles if p[2] in shares for file in shares[p[2]].glob("*.pdf")}
+                active={(p[0],str(shares[p[2]]/file.name)) for p in profiles if p[2] in shares for file in shares[p[2]].iterdir() if file.suffix.lower() in ({".pdf"} | EXTENSIONS)}
                 for key in list(seen):
                     if key not in active:seen.pop(key,None)
                 for p in profiles:
