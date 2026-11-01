@@ -1,3 +1,7 @@
+## Individuelle Web-Zugänge
+
+Unter `/configuration` kann der Administrator jedem in `smb_accounts` registrierten Benutzer ein eigenes Web-Passwort (mindestens 12 Zeichen) vergeben. Das Web-Passwort ist unabhängig vom Samba-Passwort und wird als PBKDF2-Hash gespeichert. Private Benutzer können sich damit anmelden und auf `/private` **nur die eigenen Scanprofile und Freigaben als Leseansicht** sehen. Die Konfigurations- und Schreibfunktionen sind weiterhin Administratoren vorbehalten. Bereits vorhandene Firmenbenutzer behalten ihren bisherigen, auf Firmen bezogenen lesenden Web-Zugriff. HTTP-Basic-Authentifizierung erfordert HTTPS für Zugriff außerhalb eines geschützten LANs. Eine selbstständige Profilbearbeitung durch private Benutzer und individuelle Benutzerrollen stehen noch aus.
+
 ## Private Eingangs- und Ausgangsfreigaben
 
 Unter `/private` gibt es nun die Funktion **Eingangs- und Ausgangs-Share anlegen**. Der Administrator gibt Benutzername, SMB-Passwort, Eingangs- und Ausgangs-Share ein. Beide Shares werden über den bestehenden Samba-Dienst für denselben Benutzer angelegt: Eingang beschreibbar und Ausgang für SMB-Clients schreibgeschützt. Die Scanverarbeitung selbst schreibt als Dienst in das Ausgangsverzeichnis.
