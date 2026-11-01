@@ -168,3 +168,32 @@ def render(con,shares):
     out+="<label><input type=\'checkbox\' name=\'ocr\'> Texterkennung (OCR) aktivieren</label>"
     out+="<label><input type=\'checkbox\' name=\'photo_mode\'> Fotos (JPEG/PNG) im Originalformat übernehmen</label>"
     return out+"<button>Privates Scanprofil anlegen</button></form></section>"
+
+
+def render_user(con,username,role):
+    """Only the authenticated user's private profiles, never admin controls."""
+    esc=lambda v:html.escape(str(v),quote=True)
+    rows=con.execute("""SELECT x.profile_id,x.label,p.input_share,p.output_share,
+        p.qr_split,p.ocr,x.photo_mode,p.remove_blank,p.remove_separators,p.crop,
+        p.ocr_rotate,p.ocr_deskew,p.blank_threshold,p.ocr_languages,p.ocr_output
+        FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id
+        WHERE x.username=? AND p.datev_mode=0 ORDER BY x.label""",(username,)).fetchall()
+    out="<header><h1>Meine Scanprofile</h1></header><section>"
+    for pid,label,inp,dest,qr,ocr,photo,blank,sep,crop,rotate,deskew,threshold,lang,output in rows:
+        out+="<details><summary>"+esc(label)+"</summary><p>Eingang: "+esc(inp)+" · Ausgang: "+esc(dest)+"</p>"
+        if role=="manage":
+            out+="<form method='post' action='/private-update'><input type='hidden' name='id' value='"+str(pid)+"'>"
+            out+="<label>Profilname</label><input name='label' maxlength='60' value='"+esc(label)+"' required>"
+            for key,title,value in (("qr_split","QR-Trennung",qr),("ocr","OCR",ocr),("photo_mode","Fotos JPEG/PNG",photo),
+                   ("remove_blank","Leerseiten entfernen",blank),("remove_separators","Trennblätter entfernen",sep),
+                   ("crop","Ränder beschneiden",crop),("ocr_rotate","Seiten drehen",rotate),("ocr_deskew","Entzerren",deskew)):
+                out+="<label><input type='checkbox' name='"+key+"'"+(" checked" if value else "")+"> "+title+"</label>"
+            out+="<label>Leerseiten-Schwelle</label><input type='number' name='blank_threshold' min='0' max='2' step='0.05' value='"+esc(threshold)+"'>"
+            for key,title,current,items in (("ocr_languages","OCR-Sprache",lang,("deu","eng","deu+eng")),("ocr_output","OCR-Ausgabe",output,("pdf","pdfa"))):
+                out+="<label>"+title+"</label><select name='"+key+"'>"
+                for choice in items:
+                    out+="<option value='"+choice+"'"+(" selected" if current==choice else "")+">"+choice+"</option>"
+                out+="</select>"
+            out+="<button>Eigene Einstellungen speichern</button></form>"
+        out+="</details>"
+    return out+("</section>" if rows else "<p>Keine privaten Scanprofile vorhanden.</p></section>")
