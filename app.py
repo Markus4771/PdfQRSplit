@@ -451,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -460,6 +460,18 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/private-update":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    private_scans.update(c,int(get("id")),get("label"),"qr_split" in data,"ocr" in data,"photo_mode" in data,"remove_blank" in data)
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Profiländerung fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
         if self.path=="/private-create":
             if self.password_needed():return self.password_form()
             try:
