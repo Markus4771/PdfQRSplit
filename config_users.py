@@ -22,6 +22,12 @@ def render(con,shares):
     else:
         body+="<p>Noch keine registrierten SMB-Konten.</p>"
     body+="<p><a href='/private'>Private Scanprofile und SMB-Freigaben verwalten</a> · <a href='/companies'>Firmenbenutzer und Rechte verwalten</a></p>"
+    body+="<h3>Web-Anmeldedaten vergeben</h3>"
+    body+="<p class='small'>Separates Webpasswort für Privat- und Firmenbenutzer, unabhängig vom SMB-Passwort. Mindestens 12 Zeichen.</p>"
+    body+="<form method='post' action='/config-user-web-password'><label>Benutzer</label><select name='username'>"
+    for user,*_ in rows:body+="<option value='"+esc(user)+"'>"+esc(user)+"</option>"
+    body+="</select><label>Neues Webpasswort</label><input type='password' name='password' minlength='12' maxlength='256' required>"
+    body+="<button"+(" disabled" if not rows else "")+">Web-Zugang setzen</button></form>"
     body+="<h3>E-Mail-Adresse eines Benutzers ändern</h3><form method='post' action='/config-user-email'>"
     body+="<label>Benutzer</label><select name='username'>"
     for user,*_ in rows:body+="<option value='"+esc(user)+"'>"+esc(user)+"</option>"
