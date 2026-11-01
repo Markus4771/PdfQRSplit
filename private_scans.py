@@ -39,12 +39,10 @@ def create(con,username,label,input_share,output_share,available,qr_split=False,
             raise ValueError("DATEV-geschützte Freigabe nicht für Privatprofile verwenden")
     if not valid[input_share].get("writable"):
         raise ValueError("Eingangsfreigabe ist nicht schreibbar")
-    if any(row[0] in (input_share,output_share) for row in con.execute(
-        "SELECT archive_share FROM profiles WHERE datev_mode=1")):
-        raise ValueError("Freigabe ist einem DATEV-Archiv zugeordnet")
-    if con.execute("""SELECT 1 FROM profiles WHERE output_share=? AND datev_mode=1
-             OR input_share=? AND datev_mode=1 LIMIT 1""",(output_share,output_share)).fetchone():
-        raise ValueError("DATEV-Eingang/-Ausgang darf nicht privat verwendet werden")
+    reserved=con.execute("SELECT input_share,output_share,archive_share FROM profiles WHERE datev_mode=1").fetchall()
+    for datev_input,datev_output,datev_archive in reserved:
+        if {input_share,output_share} & {datev_input,datev_output,datev_archive}:
+            raise ValueError("DATEV-Eingang, -Ausgang oder -Archiv darf nicht privat genutzt werden")
     if con.execute("""SELECT 1 FROM profiles WHERE input_share=? AND output_share=? LIMIT 1""",(input_share,output_share)).fetchone():
         raise ValueError("Diese Eingangs-/Ausgangszuordnung existiert bereits")
     if not con.execute("SELECT 1 FROM profiles LIMIT 1").fetchone():
@@ -56,7 +54,7 @@ def create(con,username,label,input_share,output_share,available,qr_split=False,
     cur=con.execute("""INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,
       remove_blank,crop,ocr,blank_threshold,ocr_languages,ocr_output,ocr_rotate,ocr_deskew,datev_mode,archive_share)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-      (name,input_share,output_share,int(qr_split),0,int(not photo_mode),0,int(ocr and not photo_mode),0.5,"deu+eng","pdf",0,0,0,""))
+      (name,input_share,output_share,int(qr_split),0,1,0,int(ocr),0.5,"deu+eng","pdf",0,0,0,""))
     con.execute("INSERT INTO private_scan_profiles(profile_id,username,label,photo_mode) VALUES (?,?,?,?)",
                 (cur.lastrowid,username,label.strip(),int(photo_mode)))
     return cur.lastrowid
