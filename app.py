@@ -451,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-smb-password"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -475,6 +475,35 @@ class Handler(BaseHTTPRequestHandler):
             outcome=samba_call({"action":"password","name":name,"password":get("password")})
             if not outcome.get("ok"):
                 return self.page("<h1>SMB-Passwortänderung fehlgeschlagen</h1><p>"+html.escape(outcome.get("error","Fehler"))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
+        if self.path=="/private-share-pair":
+            if self.password_needed():return self.password_form()
+            inp=get("input_share")
+            out=get("output_share")
+            user=get("smb_user")
+            password=get("smb_password")
+            if inp==out or not NAME.fullmatch(inp) or not NAME.fullmatch(out):
+                return self.page("Eingang und Ausgang müssen verschiedene gültige Namen besitzen",400)
+            if inp.casefold()==out.casefold():
+                return self.page("Freigabennamen dürfen sich auch bei Groß-/Kleinschreibung nicht gleichen",400)
+            existing=samba_call({"action":"list"})
+            if not existing.get("ok"):
+                return self.page("Samba-Verwaltungsdienst nicht erreichbar",503)
+            names={str(item.get("name","")).casefold() for item in existing.get("shares",[])}
+            if inp.casefold() in names or out.casefold() in names:
+                return self.page("Eine der Freigaben existiert bereits; keine Änderung durchgeführt",409)
+            first=samba_call({"action":"create","name":inp,"user":user,"password":password,"writable":True,"datev_protected":False})
+            if not first.get("ok"):
+                return self.page("<h1>Eingangs-Share nicht erstellt</h1><p>"+html.escape(first.get("error","Fehler"))+"</p>",400)
+            second=samba_call({"action":"create","name":out,"user":user,"password":password,"writable":False,"datev_protected":False})
+            if not second.get("ok"):
+                return self.page("<h1>Teilweise eingerichtet</h1><p>Der Eingangs-Share wurde angelegt, aber der Ausgangs-Share nicht. Der Eingang bleibt erhalten; keine automatische Löschung.</p><p>"+html.escape(second.get("error","Fehler"))+"</p>",409)
+            with db() as c:
+                c.execute("INSERT OR IGNORE INTO smb_accounts(username) VALUES (?)",(user,))
+                c.commit()
             self.send_response(303)
             self.send_header("Location","/private")
             self.end_headers()
