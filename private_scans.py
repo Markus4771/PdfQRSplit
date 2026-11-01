@@ -98,6 +98,7 @@ def render(con,shares):
         FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id
         ORDER BY x.username,x.label""").fetchall()
     out="<header><h1>Private Scanaufträge</h1><a href='/private'>Privatübersicht</a></header>"
+    out+="<section><h2>Weitere Scan-Funktionen</h2><p><a href='/scan-actions#scan-email'>Scan per E-Mail verschicken</a> · <a href='/scan-actions#business-card'>Visitenkarten scannen</a></p></section>"
     out+="<section><h2>Private Benutzer und Scanprofile</h2><p>Mehrere Eingänge und Ausgänge je Benutzer sind möglich. Jeder Scanauftrag hat ein eigenes Eingangs-/Ausgangspaar.</p>"
     if profiles:
         out+="<table><tr><th>Benutzer</th><th>Profil</th><th>Eingang</th><th>Ausgang</th></tr>"
@@ -176,7 +177,7 @@ def render_user(con,username,role):
         p.ocr_rotate,p.ocr_deskew,p.blank_threshold,p.ocr_languages,p.ocr_output
         FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id
         WHERE x.username=? AND p.datev_mode=0 ORDER BY x.label""",(username,)).fetchall()
-    out="<header><h1>Meine Scanprofile</h1></header><section>"
+    out="<header><h1>Meine Scanprofile</h1></header><section><h2>Weitere Scan-Funktionen</h2><p><a href='/scan-actions#scan-email'>Scan per E-Mail verschicken</a> · <a href='/scan-actions#business-card'>Visitenkarten scannen</a></p></section><section>"
     for pid,label,inp,dest,qr,ocr,photo,blank,sep,crop,rotate,deskew,threshold,lang,output in rows:
         out+="<details><summary>"+esc(label)+"</summary><p>Eingang: "+esc(inp)+" · Ausgang: "+esc(dest)+"</p>"
         if role=="manage":
