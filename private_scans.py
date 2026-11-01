@@ -111,7 +111,17 @@ def render(con,shares):
             out+="<label>Profilbezeichnung</label><input name='label' maxlength='60' value='"+esc(label)+"' required>"
             for key,title,on in (("qr_split","QR-Code-Trennung",qr),("ocr","OCR-Texterkennung",ocr),("photo_mode","JPEG/PNG unverändert kopieren",photo),("remove_blank","Leerseiten entfernen",blank)):
                 out+="<label><input type='checkbox' name='"+key+"'"+(" checked" if on else "")+"> "+title+"</label>"
-            out+="<button>Profil speichern</button></form></details>"
+            out+="<button>Profil speichern</button></form>"
+            out+="<form method='post' action='/private-mapping'><input type='hidden' name='id' value='"+str(pid)+"'>"
+            out+="<input type='hidden' name='username' value='"+esc(user)+"'>"
+            for field,title,current in (("input","SMB-Eingang",inp),("output","SMB-Ausgang",dest)):
+                out+="<label>"+title+"</label><select name='"+field+"'>"
+                for item in shares:
+                    name=item.get("name","")
+                    if user in item.get("user","").split() and not item.get("datev_protected"):
+                        out+="<option value='"+esc(name)+"'"+(" selected" if name==current else "")+">"+esc(name)+"</option>"
+                out+="</select>"
+            out+="<button>Freigaben zuordnen</button></form></details>"
     out+="<p class='small'>Neue Profile verarbeiten PDFs ohne DATEV-Sicherheitsmodus; QR-Trennung standardmäßig aus, OCR und Leerseitenentfernung an. SMB-Konten und Freigaben zuerst über die bestehende Verwaltung anlegen.</p>"
     out+="<section><h3>Private SMB-Freigabe anlegen</h3><form method='post' action='/private-share-create'>"
     out+="<label>Freigabename</label><input name='share_name' required>"
