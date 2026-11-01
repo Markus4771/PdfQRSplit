@@ -532,3 +532,19 @@ Unter `/notifications` können SMTP-Server, Port, SMTP-Benutzer, Passwort (bleib
 - Keine Benutzerpasswörter werden per E-Mail versendet. E-Mail-Fehler ändern keinen DATEV-Status.
 - Ausführliche Handbücher: [Installationsanleitung](INSTALLATION.md) und [Bedienungsanleitung](BEDIENUNGSANLEITUNG.md).
 - **Nach Installation auf Debian testen:** 2 Firmen, 2 Benutzer, Firmenisolation der Prüfbereiche und PDF-Vorschau, SMTP-Empfängertrennung, keine administrativen Schreibrechte für Firmen-Webkonten.
+
+## Aktueller Stand der Privatansicht (02.11.2026)
+
+Unter **Privat → Weitere Scan-Funktionen** werden jetzt die beiden direkten Einstiege **Scan per E-Mail verschicken** und **Visitenkarten scannen** angezeigt. Sie führen zu den entsprechenden Abschnitten von `/scan-actions`. Das gilt für die Administrationsansicht und die auf den angemeldeten Privatbenutzer beschränkte Ansicht. Dieselben Funktionen sind auch aus dem Firmenbereich erreichbar; DATEV-Profile sind für den direkten E-Mail-Versand gesperrt.
+
+**Installation nach Sicherung** (auf ausgechecktem Branch `feature/private-users-multi-shares`):
+
+```bash
+cd /root/PdfQRSplit
+git pull --ff-only
+bash scripts/phase1-check.sh
+bash install.sh
+sudo systemctl restart qrscan-web
+```
+
+Visitenkarten-OCR benötigt `tesseract-ocr`, `tesseract-ocr-deu` und `tesseract-ocr-eng`; Versand benötigt gültige SMTP-Einstellungen. **Entwicklungsstand, noch keine vollständige Debian-/Samba-Produktivfreigabe.**
