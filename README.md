@@ -1,3 +1,11 @@
+## Neue private Verwaltungseinstellungen (Entwicklungsstand)
+
+Im privaten Arbeitsbereich `/private` können Administrierende für bestehende Privatprofile zusätzlich QR-Trennblätter, Randbeschnitt, automatische Seitenrotation, Entzerrung, Leerseitenschwelle, OCR-Sprache und OCR-PDF-Format konfigurieren. Es werden ausschließlich zu privaten Profilen gehörige Felder geändert; DATEV-Profile bleiben getrennt. Die Formularwerte werden serverseitig validiert.
+
+Für private SMB-Freigaben ist ein Formular zum Ändern des Samba-Passworts vorhanden. Es verwendet den bestehenden privilegierten Samba-Dienst. Aus Sicherheitsgründen werden firmenverwaltete oder DATEV-geschützte Freigaben ausgeschlossen; außerdem wird das Ändern des Passworts eines SMB-Kontos verhindert, wenn dieses auch einer Firma zugeordnet ist. Ein SMB-Passwort wirkt auf alle Freigaben dieses Kontos, nicht nur auf ein Profil.
+
+Der Branch enthält automatisierte Regressionstests, wurde aber auf diesem Debian-Testserver noch nicht ausgeführt. Vor Installation Backup/Snapshot erstellen und Installer-/Dienstprotokolle prüfen.
+
 ## Arbeitsbereiche Privat und Firma / DATEV
 
 Die Weboberfläche enthält oben eine Umschaltung **Privat** und **Firma / DATEV**. Die Auswahl wird in einem Browser-Cookie gespeichert und bleibt beim erneuten Öffnen erhalten. Im Privatmodus führt `/` automatisch nach `/private`; die private Übersicht zeigt keine DATEV- oder Firmenverwaltung an. Privat führt nach `/private` zu den privaten Benutzern mit mehreren SMB-Eingangs-/Ausgangspaaren, optionaler QR-Trennung, optionalem OCR und JPEG/PNG-Fotoprofilen. Firma / DATEV führt nach `/companies` zur Firmen-, Belegarten- und DATEV-Verwaltung. Die Auswahl ist reine Navigation und verändert keine aktiven Aufträge, Benutzerberechtigungen, gespeicherten Profile oder DATEV-Sperren. Die Umschaltung wird nur Administratoren gezeigt; eingeschränkte Firmen-Webbenutzer erhalten dadurch keine zusätzlichen Rechte.
