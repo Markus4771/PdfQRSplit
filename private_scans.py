@@ -61,16 +61,19 @@ def create(con,username,label,input_share,output_share,available,qr_split=False,
                 (cur.lastrowid,username,label.strip(),int(photo_mode)))
     return cur.lastrowid
 
-def update(con,profile_id,label,qr_split,ocr,photo_mode,remove_blank):
+def update(con,profile_id,label,qr_split,ocr,photo_mode,remove_blank,remove_separators=False,crop=False,ocr_rotate=False,ocr_deskew=False,blank_threshold=0.5,ocr_languages='deu+eng',ocr_output='pdf'):
     migrate(con)
     row=con.execute("""SELECT p.id FROM profiles p JOIN private_scan_profiles x
        ON x.profile_id=p.id WHERE p.id=? AND p.datev_mode=0""",(profile_id,)).fetchone()
     if not row:raise ValueError("Privatprofil existiert nicht")
     if not 1<=len(label.strip())<=60:raise ValueError("Ungültige Bezeichnung")
+    if type(blank_threshold) not in (int,float) or not 0<=blank_threshold<=2:raise ValueError("Ungültiger Leerseitenwert")
+    if ocr_languages not in ("deu","eng","deu+eng") or ocr_output not in ("pdf","pdfa"):raise ValueError("Ungültige OCR-Einstellung")
     con.execute("UPDATE private_scan_profiles SET label=?,photo_mode=? WHERE profile_id=?",
                 (label.strip(),int(photo_mode),profile_id))
-    con.execute("UPDATE profiles SET qr_split=?,ocr=?,remove_blank=? WHERE id=?",
-                (int(qr_split),int(ocr),int(remove_blank),profile_id))
+    con.execute("""UPDATE profiles SET qr_split=?,ocr=?,remove_blank=?,remove_separators=?,crop=?,
+        ocr_rotate=?,ocr_deskew=?,blank_threshold=?,ocr_languages=?,ocr_output=? WHERE id=?""",
+        (int(qr_split),int(ocr),int(remove_blank),int(remove_separators),int(crop),int(ocr_rotate),int(ocr_deskew),blank_threshold,ocr_languages,ocr_output,profile_id))
 
 def change_mapping(con,profile_id,username,input_share,output_share,available):
     migrate(con)
@@ -93,14 +96,14 @@ def render(con,shares):
     migrate(con)
     esc=lambda v:html.escape(str(v),quote=True)
     users=[r[0] for r in con.execute("SELECT username FROM smb_accounts ORDER BY username")]
-    profiles=con.execute("""SELECT x.username,x.label,p.input_share,p.output_share,p.id,p.qr_split,p.ocr,x.photo_mode,p.remove_blank
+    profiles=con.execute("""SELECT x.username,x.label,p.input_share,p.output_share,p.id,p.qr_split,p.ocr,x.photo_mode,p.remove_blank,p.remove_separators,p.crop,p.ocr_rotate,p.ocr_deskew,p.blank_threshold,p.ocr_languages,p.ocr_output
         FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id
         ORDER BY x.username,x.label""").fetchall()
     out="<header><h1>Private Scanaufträge</h1><a href='/private'>Privatübersicht</a></header>"
     out+="<section><h2>Private Benutzer und Scanprofile</h2><p>Mehrere Eingänge und Ausgänge je Benutzer sind möglich. Jeder Scanauftrag hat ein eigenes Eingangs-/Ausgangspaar.</p>"
     if profiles:
         out+="<table><tr><th>Benutzer</th><th>Profil</th><th>Eingang</th><th>Ausgang</th></tr>"
-        for user,label,inp,dest,pid,qr,ocr,photo,blank in profiles:
+        for user,label,inp,dest,pid,qr,ocr,photo,blank,sep,crop,rot,deskew,threshold,lang,output in profiles:
             out+="<tr><td>"+esc(user)+"</td><td>"+esc(label)+"</td><td>"+esc(inp)+"</td><td>"+esc(dest)+"</td></tr>"
         out+="</table>"
         out+="<h3>Bestehende private Profile bearbeiten</h3>"
@@ -109,8 +112,14 @@ def render(con,shares):
             out+="<p class='small'>Eingang: "+esc(inp)+" · Ausgang: "+esc(dest)+". Freigaben bleiben bei dieser Bearbeitung unverändert.</p>"
             out+="<form method='post' action='/private-update'><input type='hidden' name='id' value='"+str(pid)+"'>"
             out+="<label>Profilbezeichnung</label><input name='label' maxlength='60' value='"+esc(label)+"' required>"
-            for key,title,on in (("qr_split","QR-Code-Trennung",qr),("ocr","OCR-Texterkennung",ocr),("photo_mode","JPEG/PNG unverändert kopieren",photo),("remove_blank","Leerseiten entfernen",blank)):
+            for key,title,on in (("qr_split","QR-Code-Trennung",qr),("ocr","OCR-Texterkennung",ocr),("photo_mode","JPEG/PNG unverändert kopieren",photo),("remove_blank","Leerseiten entfernen",blank),("remove_separators","QR-Trennblätter entfernen",sep),("crop","Ränder beschneiden",crop),("ocr_rotate","Seiten automatisch drehen",rot),("ocr_deskew","Schiefe Seiten begradigen",deskew)):
                 out+="<label><input type='checkbox' name='"+key+"'"+(" checked" if on else "")+"> "+title+"</label>"
+            out+="<label>Leerseiten-Schwelle (%)</label><input type='number' name='blank_threshold' min='0' max='2' step='0.05' value='"+esc(threshold)+"'>"
+            for field,title,current,items in (("ocr_languages","OCR-Sprache",lang,(("deu","Deutsch"),("eng","Englisch"),("deu+eng","Deutsch + Englisch"))),("ocr_output","OCR-Ausgabe",output,(("pdf","PDF"),("pdfa","PDF/A")))):
+                out+="<label>"+title+"</label><select name='"+field+"'>"
+                for value,title2 in items:
+                    out+="<option value='"+value+"'"+(" selected" if value==current else "")+">"+title2+"</option>"
+                out+="</select>"
             out+="<button>Profil speichern</button></form>"
             out+="<form method='post' action='/private-mapping'><input type='hidden' name='id' value='"+str(pid)+"'>"
             out+="<input type='hidden' name='username' value='"+esc(user)+"'>"
