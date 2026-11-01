@@ -1,6 +1,6 @@
 import sqlite3
 import unittest
-from private_scans import create,migrate,change_mapping
+from private_scans import create,migrate,change_mapping,update,render
 
 class PrivateScanTests(unittest.TestCase):
     def setUp(self):
@@ -35,6 +35,20 @@ class PrivateScanTests(unittest.TestCase):
         restricted=[dict(item,datev_protected=(item["name"]=="A")) for item in self.shares]
         with self.assertRaises(ValueError):
             change_mapping(self.db,ident,"anna","A","B",restricted)
+
+    def test_advanced_private_profile_settings(self):
+        ident=create(self.db,"anna","Documents","A","B",self.shares)
+        update(self.db,ident,"Archive",True,True,False,True,
+               remove_separators=True,crop=True,ocr_rotate=True,ocr_deskew=True,
+               blank_threshold=1.0,ocr_languages="deu",ocr_output="pdfa")
+        row=self.db.execute("""SELECT qr_split,remove_separators,crop,ocr_rotate,ocr_deskew,
+                 blank_threshold,ocr_languages,ocr_output,datev_mode FROM profiles WHERE id=?""",(ident,)).fetchone()
+        self.assertEqual(row,(1,1,1,1,1,1.0,"deu","pdfa",0))
+        page=render(self.db,self.shares)
+        self.assertIn("ocr_languages",page)
+        self.assertIn("private-smb-password",page)
+        with self.assertRaises(ValueError):
+            update(self.db,ident,"Bad",False,False,False,False,blank_threshold=3.0)
 
     def test_unknown_user(self):
         with self.assertRaises(ValueError):create(self.db,"other","Briefe","A","B",self.shares)
