@@ -21,6 +21,7 @@ import company_processing
 import company_preflight
 import private_scans
 import config_users
+import scan_features
 import review_queue
 import review_pdf
 import review_editor
@@ -153,11 +154,11 @@ class Handler(BaseHTTPRequestHandler):
     def guard(self):
         actor=self.actor()
         route=urlsplit(self.path).path
-        if actor and ((actor[0]=="admin" and actor[1] is None) or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private"))):
+        if actor and ((actor[0]=="admin" and actor[1] is None) or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private","/scan-actions"))):
             return True
-        if actor and self.command=="POST" and route=="/private-update":
+        if actor and self.command=="POST" and route in ("/private-update","/scan-email","/scan-vcard"):
             with db() as con:
-                if company_web_access.private_role(con,actor[0])=="manage" and con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone():return True
+                if (route in ("/scan-email","/scan-vcard") or company_web_access.private_role(con,actor[0])=="manage") and con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone():return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
     def password_needed(self):
@@ -297,7 +298,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except (ValueError,FileNotFoundError,OSError) as exc:
                 return self.page("<h1>PDF nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",404)
-        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications","/private","/configuration"):return self.page("Nicht gefunden",404)
+        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications","/private","/configuration","/scan-actions"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
         if route.path=="/notifications":
             if self.password_needed():return self.password_form()
@@ -369,6 +370,24 @@ class Handler(BaseHTTPRequestHandler):
                 page+="</select><label>Prüfnotiz</label><textarea name='note' maxlength='1000' rows='3'>"+esc(item["note"])+"</textarea><button>Prüfstatus speichern</button></form></article><hr>"
             page+="</section>"
             return self.page(page)
+        if route.path=="/scan-actions":
+            if self.password_needed():return self.password_form()
+            actor=self.actor()
+            with db() as con:
+                profiles=scan_features.permitted_profiles(con,actor[0],actor==("admin",None))
+            esc=lambda t:html.escape(str(t),quote=True)
+            out="<header><h1>Scan-Aktionen</h1><p>E-Mail-Versand und Visitenkarten für private und geschäftliche Scanprofile ohne DATEV.</p></header>"
+            out+="<section><h2>Scan per E-Mail senden</h2><p>Eine bereits verarbeitete Datei im Ausgangs-Share auswählen. Maximal 20 MB.</p>"
+            out+="<form method='post' action='/scan-email'><label>Profil</label><select name='profile_id'>"
+            for pid,name,share in profiles:
+                out+="<option value='"+str(pid)+"'>"+esc(name)+" ("+esc(share)+")</option>"
+            out+="</select><label>Dateiname aus dem Ausgangs-Share</label><input name='filename' required>"
+            out+="<label>Empfänger</label><input type='email' name='recipient' required><button>Scan senden</button></form></section>"
+            out+="<section><h2>Visitenkarte als Kontaktdatei</h2><p>Nach dem Scannen Kontaktdaten eintragen und als vCard für das Adressbuch herunterladen.</p>"
+            out+="<form method='post' action='/scan-vcard'><label>Name</label><input name='name' required>"
+            out+="<label>Firma</label><input name='company'><label>E-Mail</label><input name='email' type='email'>"
+            out+="<label>Telefon</label><input name='phone'><button>vCard erstellen</button></form></section>"
+            return self.page(out)
         if route.path=="/configuration":
             if self.password_needed():return self.password_form()
             if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
@@ -481,7 +500,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password","/config-user-role"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password","/config-user-role","/scan-email","/scan-vcard"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -490,6 +509,32 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/scan-email":
+            if self.password_needed():return self.password_form()
+            try:
+                actor=self.actor()
+                with db() as con:
+                    pid=int(get("profile_id"))
+                    path=scan_features.find_document(con,actor[0],actor==("admin",None),pid,get("filename"),ROOT)
+                    datev=con.execute("SELECT datev_mode FROM profiles WHERE id=?",(pid,)).fetchone()
+                    if not datev or datev[0]:raise PermissionError("DATEV-Ausgänge sind für direkten E-Mail-Versand gesperrt")
+                    settings=notifications.config(con)
+                scan_features.send_scan(settings,path,get("recipient"))
+            except (ValueError,PermissionError,FileNotFoundError,OSError,sqlite3.Error) as exc:
+                return self.page("<h1>E-Mail nicht gesendet</h1><p>"+html.escape(str(exc))+"</p>",400)
+            return self.page("<h1>Scan per E-Mail versendet</h1><a href='/scan-actions'>Zurück</a>")
+        if self.path=="/scan-vcard":
+            if self.password_needed():return self.password_form()
+            try:card=scan_features.business_card_vcard(get("name"),get("company"),get("email"),get("phone")).encode("utf-8")
+            except ValueError as exc:return self.page("<h1>Visitenkarte ungültig</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(200)
+            self.send_header("Content-Type","text/vcard; charset=utf-8")
+            self.send_header("Content-Disposition","attachment; filename=kontakt.vcf")
+            self.send_header("Content-Length",str(len(card)))
+            self.send_header("Cache-Control","no-store")
+            self.end_headers()
+            self.wfile.write(card)
+            return
         if self.path=="/config-user-role":
             if self.password_needed():return self.password_form()
             if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
