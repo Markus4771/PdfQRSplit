@@ -1,6 +1,6 @@
 import sqlite3
 import unittest
-from private_scans import create,migrate
+from private_scans import create,migrate,change_mapping
 
 class PrivateScanTests(unittest.TestCase):
     def setUp(self):
@@ -26,6 +26,16 @@ class PrivateScanTests(unittest.TestCase):
         with self.assertRaises(ValueError):create(self.db,"anna","Again","A","B",self.shares)
         protected=[dict(s,datev_protected=(s["name"]=="C")) for s in self.shares]
         with self.assertRaises(ValueError):create(self.db,"anna","Invalid","A","C",protected)
+    def test_mapping_change_preserves_datev_isolation(self):
+        ident=create(self.db,"anna","Briefe","A","B",self.shares)
+        change_mapping(self.db,ident,"anna","C","B",self.shares)
+        self.assertEqual(self.db.execute("SELECT input_share,output_share FROM profiles WHERE id=?",(ident,)).fetchone(),("C","B"))
+        with self.assertRaises(ValueError):
+            change_mapping(self.db,ident,"anna","C","C",self.shares)
+        restricted=[dict(item,datev_protected=(item["name"]=="A")) for item in self.shares]
+        with self.assertRaises(ValueError):
+            change_mapping(self.db,ident,"anna","A","B",restricted)
+
     def test_unknown_user(self):
         with self.assertRaises(ValueError):create(self.db,"other","Briefe","A","B",self.shares)
 
