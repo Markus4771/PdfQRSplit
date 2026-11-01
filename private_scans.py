@@ -72,6 +72,23 @@ def update(con,profile_id,label,qr_split,ocr,photo_mode,remove_blank):
     con.execute("UPDATE profiles SET qr_split=?,ocr=?,remove_blank=? WHERE id=?",
                 (int(qr_split),int(ocr),int(remove_blank),profile_id))
 
+def change_mapping(con,profile_id,username,input_share,output_share,available):
+    migrate(con)
+    row=con.execute("SELECT x.username FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id WHERE p.id=? AND p.datev_mode=0",(profile_id,)).fetchone()
+    if not row or username!=row[0]:raise ValueError("Privatprofil unbekannt")
+    valid={item["name"]:item for item in available}
+    if input_share==output_share or input_share not in valid or output_share not in valid:raise ValueError("Ungültige Freigaben")
+    for name in (input_share,output_share):
+        entry=valid[name]
+        if username not in entry.get("user","").split() or entry.get("datev_protected"):
+            raise ValueError("Freigabe nicht für Benutzer freigegeben")
+    if not valid[input_share].get("writable"):raise ValueError("Eingang ist schreibgeschützt")
+    others=con.execute("SELECT id,input_share,output_share,archive_share,datev_mode FROM profiles WHERE id<>?",(profile_id,)).fetchall()
+    for _,src,dst,arc,datev in others:
+        if src==input_share and dst==output_share:raise ValueError("Doppeltes Freigabepaar")
+        if datev and ({input_share,output_share}&{src,dst,arc}):raise ValueError("Freigabe für DATEV reserviert")
+    con.execute("UPDATE profiles SET input_share=?,output_share=? WHERE id=?",(input_share,output_share,profile_id))
+
 def render(con,shares):
     migrate(con)
     esc=lambda v:html.escape(str(v),quote=True)
@@ -96,6 +113,12 @@ def render(con,shares):
                 out+="<label><input type='checkbox' name='"+key+"'"+(" checked" if on else "")+"> "+title+"</label>"
             out+="<button>Profil speichern</button></form></details>"
     out+="<p class='small'>Neue Profile verarbeiten PDFs ohne DATEV-Sicherheitsmodus; QR-Trennung standardmäßig aus, OCR und Leerseitenentfernung an. SMB-Konten und Freigaben zuerst über die bestehende Verwaltung anlegen.</p>"
+    out+="<section><h3>Private SMB-Freigabe anlegen</h3><form method='post' action='/private-share-create'>"
+    out+="<label>Freigabename</label><input name='share_name' required>"
+    out+="<label>Benutzer</label><input name='smb_user' required>"
+    out+="<label>SMB-Passwort</label><input type='password' name='smb_password' minlength='12' required>"
+    out+="<label><input type='checkbox' name='writable' checked> Schreibzugriff</label>"
+    out+="<button>Freigabe anlegen</button></form></section>"
     if not users or not shares:return out+"<p>Bitte zuerst Benutzer und Samba-Freigaben einrichten.</p></section>"
     out+="<form method='post' action='/private-create'><label>Privater Benutzer</label><select name='username'>"
     for user in users:out+="<option value='"+esc(user)+"'>"+esc(user)+"</option>"
