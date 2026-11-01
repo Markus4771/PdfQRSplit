@@ -15,9 +15,12 @@ def migrate(con):
        FOREIGN KEY(profile_id) REFERENCES profiles(id),
        FOREIGN KEY(username) REFERENCES smb_accounts(username))""")
     con.execute("CREATE INDEX IF NOT EXISTS idx_private_scan_owner ON private_scan_profiles(username)")
+    if "photo_mode" not in {row[1] for row in con.execute("PRAGMA table_info(private_scan_profiles)")}:
+        con.execute("ALTER TABLE private_scan_profiles ADD COLUMN photo_mode INTEGER NOT NULL DEFAULT 0")
 
-def create(con,username,label,input_share,output_share,available):
+def create(con,username,label,input_share,output_share,available,qr_split=False,ocr=False,photo_mode=False):
     migrate(con)
+    if any(type(v) is not bool for v in (qr_split,ocr,photo_mode)):raise ValueError("Ungültige Scanoptionen")
     if not isinstance(username,str) or not con.execute("SELECT 1 FROM smb_accounts WHERE username=?",(username,)).fetchone():
         raise ValueError("Privater SMB-Benutzer unbekannt")
     if not isinstance(label,str) or not 1<=len(label.strip())<=60:
@@ -53,9 +56,9 @@ def create(con,username,label,input_share,output_share,available):
     cur=con.execute("""INSERT INTO profiles(name,input_share,output_share,qr_split,remove_separators,
       remove_blank,crop,ocr,blank_threshold,ocr_languages,ocr_output,ocr_rotate,ocr_deskew,datev_mode,archive_share)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-      (name,input_share,output_share,0,0,1,0,1,0.5,"deu+eng","pdf",0,0,0,""))
-    con.execute("INSERT INTO private_scan_profiles(profile_id,username,label) VALUES (?,?,?)",
-                (cur.lastrowid,username,label.strip()))
+      (name,input_share,output_share,int(qr_split),0,int(not photo_mode),0,int(ocr and not photo_mode),0.5,"deu+eng","pdf",0,0,0,""))
+    con.execute("INSERT INTO private_scan_profiles(profile_id,username,label,photo_mode) VALUES (?,?,?,?)",
+                (cur.lastrowid,username,label.strip(),int(photo_mode)))
     return cur.lastrowid
 
 def render(con,shares):
@@ -83,4 +86,7 @@ def render(con,shares):
             name=share.get("name","")
             if name:out+="<option value='"+esc(name)+"'>"+esc(name)+"</option>"
         out+="</select>"
+    out+="<label><input type=\'checkbox\' name=\'qr_split\'> QR-Code-Trennung aktivieren</label>"
+    out+="<label><input type=\'checkbox\' name=\'ocr\'> Texterkennung (OCR) aktivieren</label>"
+    out+="<label><input type=\'checkbox\' name=\'photo_mode\'> Fotos (JPEG/PNG) als PDF übernehmen; OCR bei Fotos deaktiviert</label>"
     return out+"<button>Privates Scanprofil anlegen</button></form></section>"
