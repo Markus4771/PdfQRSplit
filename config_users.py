@@ -10,10 +10,14 @@ def render(con,shares):
     body="<section><h2>Benutzerverwaltung</h2><p class='small'>Zentrale Übersicht: SMB-Konten, private Profile und Firmenzuordnungen. Firmenrechte werden nur in der Firmenverwaltung geändert.</p>"
     body+="<p>Administratorzugang: <strong>admin</strong> (separates Webpasswort)</p>"
     if rows:
-        body+="<table><tr><th>Benutzer</th><th>E-Mail</th><th>Privatprofile</th><th>Firmenzuordnungen</th><th>SMB-Freigaben</th></tr>"
+        body+="<table><tr><th>Benutzer</th><th>E-Mail</th><th>Privatprofile</th><th>Firma und Rolle</th><th>SMB-Freigaben</th></tr>"
         for user,email,company,private in rows:
             mapped=", ".join(item.get("name","") for item in shares if user in item.get("user","").split())
-            body+="<tr><td>"+esc(user)+"</td><td>"+esc(email)+"</td><td>"+str(private)+"</td><td>"+str(company)+"</td><td>"+esc(mapped)+"</td></tr>"
+            firms=con.execute("""SELECT co.display_name,co.code,ca.role
+               FROM company_access ca JOIN companies co ON co.id=ca.company_id
+               WHERE ca.username=? ORDER BY co.display_name""",(user,)).fetchall()
+            names=", ".join(str(name)+" ("+str(code)+", "+str(role)+")" for name,code,role in firms)
+            body+="<tr><td>"+esc(user)+"</td><td>"+esc(email)+"</td><td>"+str(private)+"</td><td>"+esc(names or "Keine Firma")+"</td><td>"+esc(mapped or "Keine Freigaben")+"</td></tr>"
         body+="</table>"
     else:
         body+="<p>Noch keine registrierten SMB-Konten.</p>"
