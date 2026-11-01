@@ -43,4 +43,4 @@ def editor_html(signature,images):
        '<form id="editor-form" method="post" action="/review-editor-save"><input type="hidden" name="signature" value="'+sig+'">'
        '<input type="hidden" name="plan" id="plan"><div id="sheets" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">'
        +''.join(blocks)+'</div><button type="submit">Korrekturentwurf speichern</button></form></section>'
-       '<style>.sheet{padding:9px;border:1px solid #999;border-radius:6px}.sheet img{width:100%;height:210px;object-fit:contain}.sheet button{margin:4px}</style>'+script)
+       '<style>.sheet{padding:9px;border:1px solid #999;border-radius:6px}.sheet img{width:100%;height:210px;object-fit:contain}.sheet button{margin:4px}</style><script src="/review-editor.js" defer></script>')
