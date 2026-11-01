@@ -1,6 +1,6 @@
 import sqlite3
 import unittest
-from private_scans import create,migrate,change_mapping,update,render
+from private_scans import create,migrate,change_mapping,update,render,render_user
 
 class PrivateScanTests(unittest.TestCase):
     def setUp(self):
@@ -49,6 +49,16 @@ class PrivateScanTests(unittest.TestCase):
         self.assertIn("private-smb-password",page)
         with self.assertRaises(ValueError):
             update(self.db,ident,"Bad",False,False,False,False,blank_threshold=3.0)
+
+    def test_private_user_page_is_scoped(self):
+        create(self.db,"anna","Anna-Archiv","A","B",self.shares)
+        self.db.execute("INSERT INTO smb_accounts VALUES('bob')")
+        create(self.db,"bob","Bob-Geheim","B","C",[dict(x,user="bob") for x in self.shares])
+        view=render_user(self.db,"anna","read")
+        self.assertIn("Anna-Archiv",view)
+        self.assertNotIn("Bob-Geheim",view)
+        self.assertNotIn("private-update",view)
+        self.assertIn("private-update",render_user(self.db,"anna","manage"))
 
     def test_unknown_user(self):
         with self.assertRaises(ValueError):create(self.db,"other","Briefe","A","B",self.shares)
