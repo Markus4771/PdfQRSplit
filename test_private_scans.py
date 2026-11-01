@@ -60,6 +60,20 @@ class PrivateScanTests(unittest.TestCase):
         self.assertNotIn("private-update",view)
         self.assertIn("private-update",render_user(self.db,"anna","manage"))
 
+    def test_no_datev_input_output_or_archive_overlap(self):
+        self.db.execute("""INSERT INTO profiles(name,input_share,output_share,datev_mode,archive_share)
+            VALUES ('datev','A','B',1,'C')""")
+        extra=self.shares+[{"name":"D","user":"anna","writable":True,"datev_protected":False}]
+        for source,dest in (("A","D"),("D","A"),("B","D"),("D","B"),("C","D"),("D","C")):
+            with self.subTest(source=source,dest=dest):
+                with self.assertRaises(ValueError):
+                    create(self.db,"anna","Forbidden",source,dest,extra)
+        self.assertEqual(self.db.execute("SELECT COUNT(*) FROM private_scan_profiles").fetchone()[0],0)
+
+    def test_photo_mode_keeps_pdf_ocr(self):
+        pid=create(self.db,"anna","Mixed","A","B",self.shares,ocr=True,photo_mode=True)
+        self.assertEqual(self.db.execute("SELECT ocr,remove_blank FROM profiles WHERE id=?",(pid,)).fetchone(),(1,1))
+
     def test_unknown_user(self):
         with self.assertRaises(ValueError):create(self.db,"other","Briefe","A","B",self.shares)
 
