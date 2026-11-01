@@ -156,9 +156,9 @@ class Handler(BaseHTTPRequestHandler):
         route=urlsplit(self.path).path
         if actor and ((actor[0]=="admin" and actor[1] is None) or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private","/scan-actions"))):
             return True
-        if actor and self.command=="POST" and route in ("/private-update","/scan-email","/scan-vcard"):
+        if actor and self.command=="POST" and route in ("/private-update","/scan-email","/scan-vcard","/scan-card-read"):
             with db() as con:
-                if route in ("/scan-email","/scan-vcard") and (con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone() or actor[1]):return True
+                if route in ("/scan-email","/scan-vcard","/scan-card-read") and (con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone() or actor[1]):return True
                 if route=="/private-update" and company_web_access.private_role(con,actor[0])=="manage" and con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone():return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
@@ -384,6 +384,12 @@ class Handler(BaseHTTPRequestHandler):
                 out+="<option value='"+str(pid)+"'>"+esc(name)+" ("+esc(share)+")</option>"
             out+="</select><label>Dateiname aus dem Ausgangs-Share</label><input name='filename' required>"
             out+="<label>Empfänger</label><input type='email' name='recipient' required><button>Scan senden</button></form></section>"
+            out+="<section><h2>Visitenkarte erkennen</h2><p>Scanne eine Visitenkarte als JPG/PNG in ein Profil ohne DATEV. OCR liest einen Entwurf, den du vor dem Export korrigieren kannst.</p>"
+            out+="<form method='post' action='/scan-card-read'><label>Profil</label><select name='profile_id'>"
+            for pid,name,share in profiles:
+                out+="<option value='"+str(pid)+"'>"+esc(name)+" ("+esc(share)+")</option>"
+            out+="</select><label>Bilddatei im Ausgangs-Share</label><input name='filename' required>"
+            out+="<button>Visitenkarte erkennen</button></form></section>"
             out+="<section><h2>Visitenkarte als Kontaktdatei</h2><p>Nach dem Scannen Kontaktdaten eintragen und als vCard für das Adressbuch herunterladen.</p>"
             out+="<form method='post' action='/scan-vcard'><label>Name</label><input name='name' required>"
             out+="<label>Firma</label><input name='company'><label>E-Mail</label><input name='email' type='email'>"
@@ -501,7 +507,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password","/config-user-role","/scan-email","/scan-vcard"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email","/config-user-web-password","/config-user-role","/scan-email","/scan-vcard","/scan-card-read"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -524,6 +530,22 @@ class Handler(BaseHTTPRequestHandler):
             except (ValueError,PermissionError,FileNotFoundError,OSError,sqlite3.Error) as exc:
                 return self.page("<h1>E-Mail nicht gesendet</h1><p>"+html.escape(str(exc))+"</p>",400)
             return self.page("<h1>Scan per E-Mail versendet</h1><a href='/scan-actions'>Zurück</a>")
+        if self.path=="/scan-card-read":
+            if self.password_needed():return self.password_form()
+            try:
+                actor=self.actor()
+                with db() as con:
+                    pid=int(get("profile_id"))
+                    file=scan_features.find_document(con,actor[0],actor==("admin",None),pid,get("filename"),ROOT)
+                    row=con.execute("SELECT datev_mode FROM profiles WHERE id=?",(pid,)).fetchone()
+                    if not row or row[0]:raise PermissionError("DATEV-Profile sind ausgeschlossen")
+                contact=scan_features.read_business_card(file)
+            except (ValueError,PermissionError,FileNotFoundError,OSError,sqlite3.Error,TimeoutError) as exc:
+                return self.page("<h1>Visitenkartenerkennung fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p>",400)
+            out="<h1>Visitenkarte prüfen</h1><p>OCR-Daten sind unverbindlich; bitte vor dem Speichern prüfen.</p><form method='post' action='/scan-vcard'>"
+            for field,title in (("name","Name"),("company","Firma"),("email","E-Mail"),("phone","Telefon")):
+                out+="<label>"+title+"</label><input name='"+field+"' value='"+html.escape(contact[field],quote=True)+"' maxlength='256'>"
+            return self.page(out+"<button>Kontaktdatei herunterladen</button></form>")
         if self.path=="/scan-vcard":
             if self.password_needed():return self.password_form()
             try:card=scan_features.business_card_vcard(get("name"),get("company"),get("email"),get("phone")).encode("utf-8")
