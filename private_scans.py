@@ -61,20 +61,40 @@ def create(con,username,label,input_share,output_share,available,qr_split=False,
                 (cur.lastrowid,username,label.strip(),int(photo_mode)))
     return cur.lastrowid
 
+def update(con,profile_id,label,qr_split,ocr,photo_mode,remove_blank):
+    migrate(con)
+    row=con.execute("""SELECT p.id FROM profiles p JOIN private_scan_profiles x
+       ON x.profile_id=p.id WHERE p.id=? AND p.datev_mode=0""",(profile_id,)).fetchone()
+    if not row:raise ValueError("Privatprofil existiert nicht")
+    if not 1<=len(label.strip())<=60:raise ValueError("Ungültige Bezeichnung")
+    con.execute("UPDATE private_scan_profiles SET label=?,photo_mode=? WHERE profile_id=?",
+                (label.strip(),int(photo_mode),profile_id))
+    con.execute("UPDATE profiles SET qr_split=?,ocr=?,remove_blank=? WHERE id=?",
+                (int(qr_split),int(ocr),int(remove_blank),profile_id))
+
 def render(con,shares):
     migrate(con)
     esc=lambda v:html.escape(str(v),quote=True)
     users=[r[0] for r in con.execute("SELECT username FROM smb_accounts ORDER BY username")]
-    profiles=con.execute("""SELECT x.username,x.label,p.input_share,p.output_share,p.id
+    profiles=con.execute("""SELECT x.username,x.label,p.input_share,p.output_share,p.id,p.qr_split,p.ocr,x.photo_mode,p.remove_blank
         FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id
         ORDER BY x.username,x.label""").fetchall()
     out="<header><h1>Private Scanaufträge</h1><a href='/private'>Privatübersicht</a></header>"
     out+="<section><h2>Private Benutzer und Scanprofile</h2><p>Mehrere Eingänge und Ausgänge je Benutzer sind möglich. Jeder Scanauftrag hat ein eigenes Eingangs-/Ausgangspaar.</p>"
     if profiles:
         out+="<table><tr><th>Benutzer</th><th>Profil</th><th>Eingang</th><th>Ausgang</th></tr>"
-        for user,label,inp,dest,_ in profiles:
+        for user,label,inp,dest,pid,qr,ocr,photo,blank in profiles:
             out+="<tr><td>"+esc(user)+"</td><td>"+esc(label)+"</td><td>"+esc(inp)+"</td><td>"+esc(dest)+"</td></tr>"
         out+="</table>"
+        out+="<h3>Bestehende private Profile bearbeiten</h3>"
+        for user,label,inp,dest,pid,qr,ocr,photo,blank in profiles:
+            out+="<details><summary>"+esc(user)+" · "+esc(label)+"</summary>"
+            out+="<p class='small'>Eingang: "+esc(inp)+" · Ausgang: "+esc(dest)+". Freigaben bleiben bei dieser Bearbeitung unverändert.</p>"
+            out+="<form method='post' action='/private-update'><input type='hidden' name='id' value='"+str(pid)+"'>"
+            out+="<label>Profilbezeichnung</label><input name='label' maxlength='60' value='"+esc(label)+"' required>"
+            for key,title,on in (("qr_split","QR-Code-Trennung",qr),("ocr","OCR-Texterkennung",ocr),("photo_mode","JPEG/PNG unverändert kopieren",photo),("remove_blank","Leerseiten entfernen",blank)):
+                out+="<label><input type='checkbox' name='"+key+"'"+(" checked" if on else "")+"> "+title+"</label>"
+            out+="<button>Profil speichern</button></form></details>"
     out+="<p class='small'>Neue Profile verarbeiten PDFs ohne DATEV-Sicherheitsmodus; QR-Trennung standardmäßig aus, OCR und Leerseitenentfernung an. SMB-Konten und Freigaben zuerst über die bestehende Verwaltung anlegen.</p>"
     if not users or not shares:return out+"<p>Bitte zuerst Benutzer und Samba-Freigaben einrichten.</p></section>"
     out+="<form method='post' action='/private-create'><label>Privater Benutzer</label><select name='username'>"
@@ -88,5 +108,5 @@ def render(con,shares):
         out+="</select>"
     out+="<label><input type=\'checkbox\' name=\'qr_split\'> QR-Code-Trennung aktivieren</label>"
     out+="<label><input type=\'checkbox\' name=\'ocr\'> Texterkennung (OCR) aktivieren</label>"
-    out+="<label><input type=\'checkbox\' name=\'photo_mode\'> Fotos (JPEG/PNG) als PDF übernehmen; OCR bei Fotos deaktiviert</label>"
+    out+="<label><input type=\'checkbox\' name=\'photo_mode\'> Fotos (JPEG/PNG) im Originalformat übernehmen</label>"
     return out+"<button>Privates Scanprofil anlegen</button></form></section>"
