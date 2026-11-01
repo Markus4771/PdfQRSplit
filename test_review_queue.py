@@ -1,6 +1,6 @@
 import sqlite3
 import unittest
-from review_queue import migrate,records,set_case
+from review_queue import migrate,records,set_case,history
 
 class ReviewQueueTests(unittest.TestCase):
     def setUp(self):
@@ -26,6 +26,19 @@ class ReviewQueueTests(unittest.TestCase):
         self.assertEqual(len(records(self.db,"1")),0)
         self.assertEqual(len(records(self.db,"1",state="resolved")),1)
         self.assertEqual(len(records(self.db,"2")),1)
+    def test_audit_history_and_noop(self):
+        self.assertEqual(history(self.db,self.sig),[])
+        set_case(self.db,self.sig,"in_progress","Korrektur begonnen",actor="admin")
+        set_case(self.db,self.sig,"in_progress","Korrektur begonnen",actor="admin")
+        set_case(self.db,self.sig,"resolved","Dokument geprüft",actor="admin")
+        events=history(self.db,self.sig)
+        self.assertEqual(len(events),2)
+        self.assertEqual(events[0]["old_state"],"in_progress")
+        self.assertEqual(events[0]["new_state"],"resolved")
+        self.assertEqual(events[0]["old_note"],"Korrektur begonnen")
+        self.assertEqual(events[1]["actor"],"admin")
+        self.assertEqual(events[1]["old_state"],"open")
+        self.assertEqual(len(history(self.db,"b"*64)),0)
     def test_invalid_updates(self):
         for sig,state in (("../invalid","resolved"),(self.sig,"uploaded")):
             with self.assertRaises(ValueError):set_case(self.db,sig,state,"test")
