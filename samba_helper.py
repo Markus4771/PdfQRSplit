@@ -60,7 +60,7 @@ def main():
     action=request.get("action")
     entries=read()
     if action=="list":
-        print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no","datev_protected":(v.get("comment")=="QRSCAN-DATEV-READONLY" or (v.get("comment")=="QRSCAN-COMPANY-MANAGED" and v.get("read only")=="yes" and not v.get("write list")))} for n,v in sorted(entries.items())]}));return
+        print(json.dumps({"ok":True,"shares":[{"name":n,"user":v.get("valid users",""),"writable":v.get("read only")=="no","company_managed":v.get("comment")=="QRSCAN-COMPANY-MANAGED","datev_protected":(v.get("comment")=="QRSCAN-DATEV-READONLY" or (v.get("comment")=="QRSCAN-COMPANY-MANAGED" and v.get("read only")=="yes" and not v.get("write list")))} for n,v in sorted(entries.items())]}));return
     if action=="company-user-create":
         user=request.get("username","");password=request.get("password","")
         if not isinstance(user,str) or not USER.fullmatch(user) or not isinstance(password,str) or not 12<=len(password)<=256:
