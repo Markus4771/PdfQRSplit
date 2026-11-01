@@ -157,8 +157,6 @@ class Handler(BaseHTTPRequestHandler):
         if actor and self.command=="POST" and route=="/private-update":
             with db() as con:
                 if company_web_access.private_role(con,actor[0])=="manage":return True
-        if False:
-            return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
     def password_needed(self):
@@ -397,7 +395,8 @@ class Handler(BaseHTTPRequestHandler):
                 else:
                     username=self.actor()[0]
                     assigned=c.execute("SELECT x.label,p.input_share,p.output_share FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id WHERE x.username=? ORDER BY x.label",(username,)).fetchall()
-                    content="<header><h1>Meine Scanprofile</h1></header><section>"+("".join("<p><strong>"+html.escape(label)+"</strong>: "+html.escape(source)+" → "+html.escape(dest)+"</p>" for label,source,dest in assigned) or "<p>Keine privaten Scanprofile vorhanden.</p>")+"</section>"
+                    role=company_web_access.private_role(c,username)
+                    content=private_scans.render_user(c,username,role)
             return self.page(content)
         if route.path=="/companies":
             params=parse_qs(route.query)
