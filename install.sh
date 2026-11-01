@@ -54,6 +54,8 @@ install -m 0644 test_company_web_access.py /opt/qrscan/test_company_web_access.p
 install -m 0644 company_processing.py /opt/qrscan/company_processing.py
 install -m 0644 company_preflight.py /opt/qrscan/company_preflight.py
 install -m 0644 private_scans.py /opt/qrscan/private_scans.py
+install -m 0644 config_users.py /opt/qrscan/config_users.py
+install -m 0644 test_config_users.py /opt/qrscan/test_config_users.py
 install -m 0644 photo_scans.py /opt/qrscan/photo_scans.py
 install -m 0644 test_photo_scans.py /opt/qrscan/test_photo_scans.py
 install -m 0644 test_private_scans.py /opt/qrscan/test_private_scans.py
@@ -269,7 +271,7 @@ systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
-/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive test_company_admin test_company_processing test_company_preflight test_private_scans test_photo_scans test_profile_logs test_company_monitor test_review_queue test_review_pdf test_duplicate_review test_notifications test_company_web_access
+/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive test_company_admin test_company_processing test_company_preflight test_private_scans test_config_users test_photo_scans test_profile_logs test_company_monitor test_review_queue test_review_pdf test_duplicate_review test_notifications test_company_web_access
 echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
 if ! bash ./install_fluent_bit.sh; then
   echo "WARNUNG: Fluent Bit konnte nicht installiert/aktualisiert werden; QR Scan Manager bleibt betriebsbereit." >&2
