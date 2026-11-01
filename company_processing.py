@@ -134,6 +134,9 @@ def render(con,cid,types,esc,selected_company=None,selected_type=""):
     settings=effective(con,cid,selected_type)
     out+="<form method='post' action='/company-processing'><input type='hidden' name='company_id' value='"+str(cid)+"'><input type='hidden' name='doc_type' value='"+esc(selected_type)+"'>"
     out+="<h4>"+esc(selected_type or "Firmenstandard")+"</h4>"
+    out+="<p class='small'>Scanmodus als Vorlage auswählen. Änderungen werden erst mit Einstellungen speichern übernommen.</p>"
+    out+="<label>Scanmodus</label><select data-scan-preset><option value=''>Aktuelle Einstellungen beibehalten</option><option value='private'>Privat / Büro (ohne DATEV)</option><option value='datev'>DATEV (mit Dublettensperre)</option></select>"
+    out+="<p class='small'>Privat: OCR und Leerseitenkorrektur aktiv, QR-Trennung und DATEV aus. Einstellungen können danach angepasst werden.</p>"
     for flag in FLAGS:
         out+="<label><input type='checkbox' name='"+flag+"'"+(" checked" if settings[flag] else "")+"> "+NAMES[flag]+"</label>"
     out+="<label>Leerseiten: maximaler Schwarzanteil (%)</label><input type='number' name='blank_threshold' min='0' max='2' step='0.05' value='"+esc(str(settings["blank_threshold"]))+"' required>"
