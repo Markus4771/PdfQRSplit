@@ -435,7 +435,7 @@ class Handler(BaseHTTPRequestHandler):
                 with db() as c:
                     response=samba_call({"action":"list"})
                     if not response.get("ok"):raise ValueError("Samba-Verwaltung nicht erreichbar")
-                    private_scans.create(c,get("username"),get("label"),get("input"),get("output"),response.get("shares",[]))
+                    private_scans.create(c,get("username"),get("label"),get("input"),get("output"),response.get("shares",[]),qr_split="qr_split" in data,ocr="ocr" in data,photo_mode="photo_mode" in data)
                     c.commit()
             except (ValueError,sqlite3.Error) as exc:
                 return self.page("<h1>Privatprofil konnte nicht gespeichert werden</h1><p>"+html.escape(str(exc))+"</p><a href='/private'>Zurück</a>",400)
