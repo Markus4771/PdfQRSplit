@@ -451,7 +451,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -460,6 +460,32 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/private-share-create":
+            if self.password_needed():return self.password_form()
+            result=samba_call({"action":"create","name":get("share_name"),"user":get("smb_user"),"password":get("smb_password"),"writable":"writable" in data,"datev_protected":False})
+            if not result.get("ok"):
+                return self.page("<h1>Freigabe konnte nicht angelegt werden</h1><p>"+html.escape(result.get("error","Unbekannter Fehler"))+"</p>",400)
+            with db() as c:
+                c.execute("INSERT OR IGNORE INTO smb_accounts(username) VALUES (?)",(get("smb_user"),))
+                c.commit()
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
+        if self.path=="/private-mapping":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    response=samba_call({"action":"list"})
+                    if not response.get("ok"):raise ValueError("Samba-Dienst nicht erreichbar")
+                    private_scans.change_mapping(c,int(get("id")),get("username"),get("input"),get("output"),response.get("shares",[]))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Zuordnung fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
         if self.path=="/private-update":
             if self.password_needed():return self.password_form()
             try:
