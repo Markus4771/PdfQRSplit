@@ -292,7 +292,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except (ValueError,FileNotFoundError,OSError) as exc:
                 return self.page("<h1>PDF nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",404)
-        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications","/private"):return self.page("Nicht gefunden",404)
+        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications","/private","/configuration"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
         if route.path=="/notifications":
             if self.password_needed():return self.password_form()
