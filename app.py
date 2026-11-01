@@ -262,6 +262,7 @@ class Handler(BaseHTTPRequestHandler):
                 if permitted is not None and company and (not company.isdigit() or int(company) not in permitted):return self.page("Keine Berechtigung",403)
                 try:items=review_queue.records(c,company,doctype,state,allowed_companies=permitted)
                 except ValueError:return self.page("Ungültige Filter",400)
+                histories={item["signature"]:review_queue.history(c,item["signature"],10) for item in items}
             esc=lambda v:html.escape(str(v),quote=True)
             page="<header><h1>PDF-Prüfwarteschlange</h1>"+("<a href='/companies'>Firmenverwaltung</a>" if self.actor()[0]=="admin" else "<a href='/datev-review'>DATEV-Prüfbereich</a>")+"</header>"
             page+="<section><form method='get' action='/review'><label>Firma</label><select name='company'><option value=''>Alle Firmen</option>"
@@ -279,6 +280,12 @@ class Handler(BaseHTTPRequestHandler):
                 page+="<article><h3>"+esc(item["filename"])+"</h3><p>"+esc(item["company"])+" · "+esc(item["doctype"])+" · "+esc(item["severity"])+" · "+esc(item["category"])+"</p>"
                 page+="<p>"+esc(item["message"])+"</p><p class='small'>"+esc(item["updated"])+" · Status: "+esc(item["state"])+"</p>"
                 page+="<p><a href='/review-pdf?signature="+esc(item["signature"])+"' target='_blank' rel='noopener'>Original-PDF ansehen</a></p>"
+                changes=histories.get(item["signature"],[])
+                if changes:
+                    page+="<details><summary>Prüfverlauf ("+str(len(changes))+" letzte Änderungen)</summary><ol>"
+                    for change in changes:
+                        page+="<li>"+esc(change["timestamp"])+" · "+esc(change["actor"])+" · "+esc(change["old_state"])+" → "+esc(change["new_state"])+"<p>"+esc(change["new_note"])+"</p></li>"
+                    page+="</ol></details>"
                 if self.actor()[0]!="admin":
                     page+="</article><hr>"
                     continue
