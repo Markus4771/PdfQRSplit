@@ -107,7 +107,7 @@ def render(con,shares):
             out+="<tr><td>"+esc(user)+"</td><td>"+esc(label)+"</td><td>"+esc(inp)+"</td><td>"+esc(dest)+"</td></tr>"
         out+="</table>"
         out+="<h3>Bestehende private Profile bearbeiten</h3>"
-        for user,label,inp,dest,pid,qr,ocr,photo,blank in profiles:
+        for user,label,inp,dest,pid,qr,ocr,photo,blank,sep,crop,rot,deskew,threshold,lang,output in profiles:
             out+="<details><summary>"+esc(user)+" · "+esc(label)+"</summary>"
             out+="<p class='small'>Eingang: "+esc(inp)+" · Ausgang: "+esc(dest)+". Freigaben bleiben bei dieser Bearbeitung unverändert.</p>"
             out+="<form method='post' action='/private-update'><input type='hidden' name='id' value='"+str(pid)+"'>"
@@ -138,6 +138,14 @@ def render(con,shares):
     out+="<label>SMB-Passwort</label><input type='password' name='smb_password' minlength='12' required>"
     out+="<label><input type='checkbox' name='writable' checked> Schreibzugriff</label>"
     out+="<button>Freigabe anlegen</button></form></section>"
+    eligible=[item for item in shares if not item.get("company_managed") and not item.get("datev_protected")]
+    if eligible:
+        out+="<section><h3>Privates SMB-Passwort ändern</h3><form method='post' action='/private-smb-password'>"
+        out+="<label>SMB-Freigabe</label><select name='share_name'>"
+        for item in eligible:
+            out+="<option value='"+esc(item["name"])+"'>"+esc(item["name"])+" ("+esc(item.get("user",""))+")</option>"
+        out+="</select><label>Neues SMB-Passwort</label><input type='password' name='password' minlength='12' required>"
+        out+="<button>Passwort ändern</button></form></section>"
     if not users or not shares:return out+"<p>Bitte zuerst Benutzer und Samba-Freigaben einrichten.</p></section>"
     out+="<form method='post' action='/private-create'><label>Privater Benutzer</label><select name='username'>"
     for user in users:out+="<option value='"+esc(user)+"'>"+esc(user)+"</option>"
