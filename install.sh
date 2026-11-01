@@ -61,7 +61,6 @@ install -m 0644 review_queue.py /opt/qrscan/review_queue.py
 install -m 0644 review_pdf.py /opt/qrscan/review_pdf.py
 install -m 0644 review_editor.py /opt/qrscan/review_editor.py
 install -m 0644 review_editor.js /opt/qrscan/review_editor.js
-install -m 0644 review_editor.py /opt/qrscan/review_editor.py
 install -m 0644 duplicate_review.py /opt/qrscan/duplicate_review.py
 install -m 0644 test_duplicate_review.py /opt/qrscan/test_duplicate_review.py
 install -m 0644 test_review_pdf.py /opt/qrscan/test_review_pdf.py
