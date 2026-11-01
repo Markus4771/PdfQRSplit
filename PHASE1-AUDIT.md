@@ -21,3 +21,26 @@
 ## Änderungsgrenzen
 
 Keine vorhandenen PDF-Dateien, SMB-Shares oder Datenbankzeilen werden durch diese GitHub-Commits unmittelbar verändert. Es erfolgte kein Merge nach `main` und keine Installation auf dem Zielhost. Die Versionsfreigabe bleibt gesperrt, bis die Prüfungen bestanden sind.
+
+## Stand der Testabnahme
+
+Beim GitHub-Commit `a9f36882d657284b3f3762fbd13ba412bc1dfbdc` waren keine bestätigten GitHub-Actions-Ergebnisse abrufbar. Der Entwicklungsbranch ist daher **nicht abgenommen**.
+
+Ein nicht destruktiver Prüfablauf ist unter `scripts/phase1-check.sh` vorhanden. Auf einer separaten Debian-Test-VM mit ausgechecktem Feature-Branch:
+
+```bash
+cd /root/PdfQRSplit
+git status
+git fetch origin
+git switch feature/private-users-multi-shares
+git pull --ff-only
+bash scripts/phase1-check.sh
+```
+
+Optional kann ein **vorher angefertigter Datenbank-Sicherungskopiepfad** übergeben werden:
+
+```bash
+QRSCAN_TEST_DB=/pfad/zur/testkopie/profiles.sqlite3 bash scripts/phase1-check.sh
+```
+
+Der Prüfablauf installiert nichts, ändert keine Samba-Freigaben und verändert die Datenbank nicht. Er führt die Syntaxprüfung und ausgewählte Unit-Tests aus. Die reale Verarbeitung und eine vollständige Installations-/Migrationstestung bleiben zusätzlich erforderlich.
