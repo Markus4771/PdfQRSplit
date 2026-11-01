@@ -465,11 +465,13 @@ class Handler(BaseHTTPRequestHandler):
             name=get("share_name")
             answer=samba_call({"action":"list"})
             share=next((x for x in answer.get("shares",[]) if x.get("name")==name),None)
-            if not answer.get("ok") or not share or share.get("datev_protected"):
+            if not answer.get("ok") or not share or share.get("datev_protected") or share.get("company_managed"):
                 return self.page("Freigabe nicht zulässig",403)
             with db() as c:
                 if not c.execute("SELECT 1 FROM private_scan_profiles WHERE username=?",(share.get("user"),)).fetchone():
                     return self.page("Kein privater Benutzer",403)
+                if c.execute("SELECT 1 FROM company_access WHERE username=? LIMIT 1",(share.get("user"),)).fetchone():
+                    return self.page("SMB-Konto wird auch für Firmen genutzt; Passwort hier nicht änderbar",403)
             outcome=samba_call({"action":"password","name":name,"password":get("password")})
             if not outcome.get("ok"):
                 return self.page("<h1>SMB-Passwortänderung fehlgeschlagen</h1><p>"+html.escape(outcome.get("error","Fehler"))+"</p>",400)
