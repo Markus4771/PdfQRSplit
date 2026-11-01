@@ -120,7 +120,8 @@ STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-wi
 class Handler(BaseHTTPRequestHandler):
     def page(self, content, status=200, unauthorized=False):
         mode=self.workspace_mode()
-        if self.actor()[0]=="admin":
+        principal=self.actor()
+        if principal and principal[0]=="admin" and principal[1] is None:
             switch=("<section class='mode-switch' aria-label='Arbeitsbereich'>"
                 "<strong>Arbeitsbereich:</strong> "
                 "<a href='/mode?value=private'"+(" aria-current='page'" if mode=="private" else "")+">Privat</a> · "
@@ -152,7 +153,7 @@ class Handler(BaseHTTPRequestHandler):
     def guard(self):
         actor=self.actor()
         route=urlsplit(self.path).path
-        if actor and (actor[0]=="admin" or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private"))):
+        if actor and ((actor[0]=="admin" and actor[1] is None) or (self.command=="GET" and route in ("/review","/datev-review","/review-pdf","/private"))):
             return True
         if actor and self.command=="POST" and route=="/private-update":
             with db() as con:
