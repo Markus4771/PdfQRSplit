@@ -18,6 +18,7 @@ from jobs_ui import dashboard,request_retry,file_flags,save_retention
 from profile_settings import migrate,check,controls,SELECT
 import company_admin
 import company_processing
+import company_preflight
 import review_queue
 import review_pdf
 import duplicate_review
@@ -301,7 +302,8 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:cid=None
             typ=params.get("doc_type",[""])[0]
             with db() as c:
-                content=company_admin.render(c,cid,typ,samba_call({"action":"list"}))
+                share_state=samba_call({"action":"list"})
+                content=company_preflight.render(c,share_state)+company_admin.render(c,cid,typ,share_state)
                 qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
                 content="<section><h2>QR-Trenncode (für alle Firmen)</h2><p class='small'>Gemeinsamer QR-Trenncode für bestehende und neue Verarbeitungsprofile.</p><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section>"+content
             return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
