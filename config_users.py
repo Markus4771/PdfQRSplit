@@ -22,6 +22,11 @@ def render(con,shares):
     else:
         body+="<p>Noch keine registrierten SMB-Konten.</p>"
     body+="<p><a href='/private'>Private Scanprofile und SMB-Freigaben verwalten</a> · <a href='/companies'>Firmenbenutzer und Rechte verwalten</a></p>"
+    body+="<h3>Privatrollen</h3><p class='small'>Lesen: eigene Profile ansehen. Verwalten: eigene PDF-Optionen bearbeiten, keine SMB-Konten oder DATEV-Funktionen ändern.</p>"
+    body+="<form method='post' action='/config-user-role'><label>Benutzer</label><select name='username'>"
+    for user,*_ in rows:body+="<option value='"+esc(user)+"'>"+esc(user)+"</option>"
+    body+="</select><label>Rolle</label><select name='role'><option value='read'>Lesen</option><option value='manage'>Eigene Profile verwalten</option></select>"
+    body+="<button"+(" disabled" if not rows else "")+">Rolle speichern</button></form>"
     body+="<h3>Web-Anmeldedaten vergeben</h3>"
     body+="<p class='small'>Separates Webpasswort für Privat- und Firmenbenutzer, unabhängig vom SMB-Passwort. Mindestens 12 Zeichen.</p>"
     body+="<form method='post' action='/config-user-web-password'><label>Benutzer</label><select name='username'>"
