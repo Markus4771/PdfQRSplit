@@ -20,6 +20,7 @@ import company_admin
 import company_processing
 import company_preflight
 import private_scans
+import config_users
 import review_queue
 import review_pdf
 import review_editor
@@ -370,6 +371,8 @@ class Handler(BaseHTTPRequestHandler):
             with db() as c:
                 count=c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0]
                 qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()
+                share_state=samba_call({"action":"list"})
+                users_page=config_users.render(c,share_state.get("shares",[]) if share_state.get("ok") else [])
             content=("<header><h1>Konfiguration</h1></header>"
                 "<section><h2>Allgemeine Einstellungen</h2>"
                 "<p>Verarbeitungsprofile insgesamt: "+str(count)+"</p>"
@@ -379,7 +382,7 @@ class Handler(BaseHTTPRequestHandler):
                 "<section><h2>QR-Trenncode</h2><p class='small'>Gemeinsamer QR-Trenncode für aktivierte QR-Profile in beiden Arbeitsbereichen.</p>"
                 "<form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr[0] if qr else "",quote=True)+"' required>"
                 "<button>QR-Code speichern</button></form></section>")
-            return self.page(content)
+            return self.page(content+users_page)
         if route.path=="/private":
             if self.password_needed():return self.password_form()
             with db() as c:
@@ -468,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create","/private-update","/private-mapping","/private-share-create","/private-share-pair","/private-smb-password","/config-user-email"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -477,6 +480,19 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/config-user-email":
+            if self.password_needed():return self.password_form()
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            try:
+                with db() as c:
+                    company_admin.save_email(c,get("username"),get("email"))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Benutzeränderung fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p>",400)
+            self.send_response(303)
+            self.send_header("Location","/configuration")
+            self.end_headers()
+            return
         if self.path=="/private-smb-password":
             if self.password_needed():return self.password_form()
             name=get("share_name")
