@@ -65,3 +65,34 @@ def prepare_draft(con,signature,root,share_root,archive_root,pages,rotation):
             Path(tmp).unlink(missing_ok=True)
         draft.close()
     return target
+
+def prepare_editor_draft(con,signature,root,share_root,archive_root,plan):
+    """Create a private, atomic correction draft using per-page rotations."""
+    import fitz
+    import tempfile
+    from review_editor import page_plan
+    src=source_for_case(con,signature,share_root,archive_root)
+    destination=Path(root).resolve()
+    destination.mkdir(parents=True,exist_ok=True,mode=0o700)
+    os.chmod(destination,0o700)
+    with fitz.open(src) as doc:
+        if doc.needs_pass or doc.page_count<1 or doc.page_count>3000:
+            raise ValueError("PDF kann nicht korrigiert werden")
+        steps=page_plan(plan,doc.page_count)
+        draft=fitz.open()
+        try:
+            for number,rotation in steps:
+                draft.insert_pdf(doc,from_page=number,to_page=number)
+                page=draft[-1]
+                page.set_rotation((page.rotation+rotation)%360)
+            fd,tmp=tempfile.mkstemp(prefix=".draft-",suffix=".pdf",dir=destination)
+            os.close(fd)
+            try:
+                draft.save(tmp,garbage=3,deflate=True)
+                os.chmod(tmp,0o600)
+                os.replace(tmp,destination/(signature+".pdf"))
+            finally:
+                Path(tmp).unlink(missing_ok=True)
+        finally:
+            draft.close()
+    return destination/(signature+".pdf")
