@@ -68,7 +68,7 @@ def render(con,shares):
     profiles=con.execute("""SELECT x.username,x.label,p.input_share,p.output_share,p.id
         FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id
         ORDER BY x.username,x.label""").fetchall()
-    out="<header><h1>Private Scanaufträge</h1><a href='/companies'>Firmenverwaltung</a></header>"
+    out="<header><h1>Private Scanaufträge</h1><a href='/private'>Privatübersicht</a></header>"
     out+="<section><h2>Private Benutzer und Scanprofile</h2><p>Mehrere Eingänge und Ausgänge je Benutzer sind möglich. Jeder Scanauftrag hat ein eigenes Eingangs-/Ausgangspaar.</p>"
     if profiles:
         out+="<table><tr><th>Benutzer</th><th>Profil</th><th>Eingang</th><th>Ausgang</th></tr>"
