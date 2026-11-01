@@ -157,7 +157,13 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(script)
             return
         if route.path=="/company-ui.js":
-            payload=b'document.querySelectorAll("select[data-auto-submit=belegart]").forEach(s=>s.addEventListener("change",()=>s.form.requestSubmit()));'
+            payload=(b'document.querySelectorAll("select[data-auto-submit=belegart]").forEach(s=>s.addEventListener("change",()=>s.form.requestSubmit()));'
+                     b'document.querySelectorAll("select[data-scan-preset]").forEach(s=>s.addEventListener("change",()=>{'
+                     b'const form=s.closest("form"); if(!form||!s.value)return;'
+                     b'const flags=s.value==="private"?{qr_split:false,remove_separators:false,remove_blank:true,crop:false,ocr:true,datev_mode:false}:'
+                     b'{qr_split:true,remove_separators:false,remove_blank:true,crop:false,ocr:true,datev_mode:true};'
+                     b'Object.entries(flags).forEach(([key,val])=>{const input=form.querySelector("input[name="+key+"]");if(input)input.checked=val;});'
+                     b'}));')
             self.send_response(200)
             self.send_header("Content-Type","application/javascript; charset=utf-8")
             self.send_header("Content-Length",str(len(payload)))
