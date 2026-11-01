@@ -26,6 +26,14 @@ class CompanyProcessingTest(unittest.TestCase):
         save(self.db,self.cid,"Rechnungseingang",specific)
         self.assertTrue(effective(self.db,self.cid,"Rechnungseingang")["ocr"])
 
+    def test_private_mode_without_qr_or_datev(self):
+        private=dict(DEFAULT,datev_mode=False,qr_split=False)
+        save(self.db,self.cid,"",private)
+        self.assertFalse(effective(self.db,self.cid,"Rechnungseingang")["datev_mode"])
+        self.assertEqual(sync_profiles(self.db,self.cid,self.shares),1)
+        row=self.db.execute("SELECT datev_mode,qr_split,archive_share FROM profiles").fetchone()
+        self.assertEqual(row,(0,0,""))
+
     def test_datev_requires_qr(self):
         with self.assertRaises(ValueError):
             save(self.db,self.cid,"",dict(DEFAULT,qr_split=False))
