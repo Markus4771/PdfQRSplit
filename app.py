@@ -118,19 +118,12 @@ STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-wi
 
 class Handler(BaseHTTPRequestHandler):
     def page(self, content, status=200, unauthorized=False):
-        path=urlsplit(self.path).path
-        if path=="/private":
-            selected="private"
-        elif path=="/companies":
-            selected="company"
-        else:
-            selected=""
+        mode=self.workspace_mode()
         if self.actor()[0]=="admin":
             switch=("<section class='mode-switch' aria-label='Arbeitsbereich'>"
-                "<strong>Arbeitsbereich wählen:</strong> "
-                "<a href='/private'"+(" aria-current='page'" if selected=="private" else "")+">Privat</a> · "
-                "<a href='/companies'"+(" aria-current='page'" if selected=="company" else "")+">Firma / DATEV</a> · "
-                "<a href='/'>Übersicht</a></section>")
+                "<strong>Arbeitsbereich:</strong> "
+                "<a href='/mode?value=private'"+(" aria-current='page'" if mode=="private" else "")+">Privat</a> · "
+                "<a href='/mode?value=company'"+(" aria-current='page'" if mode=="company" else "")+">Firma / DATEV</a></section>")
         else:
             switch=""
         payload=("<!doctype html><html lang='de'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"+STYLE+"<style>.mode-switch{padding:12px 18px;margin:8px 0}.mode-switch a{display:inline-block;padding:9px 12px;border-radius:7px;text-decoration:none}.mode-switch a[aria-current=page]{background:#263c58;color:white}</style><title>QR Scan Manager</title>"+switch+content+"</html>").encode()
@@ -142,6 +135,15 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Security-Policy","default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'self'; script-src 'self'")
         if unauthorized:self.send_header("WWW-Authenticate",'Basic realm="QR Scan Manager"')
         self.end_headers();self.wfile.write(payload)
+    def workspace_mode(self):
+        from http.cookies import SimpleCookie
+        try:
+            cookies=SimpleCookie()
+            cookies.load(self.headers.get("Cookie",""))
+            value=cookies.get("qrscan_mode")
+            return "private" if value and value.value=="private" else "company"
+        except Exception:
+            return "company"
     def actor(self):
         if valid_auth(self.headers.get("Authorization","")):return ("admin",None)
         with db() as c:return company_web_access.authenticate(c,self.headers.get("Authorization",""))
@@ -163,6 +165,20 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_response(303);self.send_header("Location","/review");self.end_headers();return
         if not self.guard():return
         route=urlsplit(self.path)
+        if route.path=="/" and self.workspace_mode()=="private":
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
+        if route.path=="/mode":
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            value=parse_qs(route.query).get("value",[""])[0]
+            if value not in ("private","company"):return self.page("Ungültiger Arbeitsbereich",400)
+            self.send_response(303)
+            self.send_header("Set-Cookie","qrscan_mode="+value+"; Path=/; HttpOnly; SameSite=Strict")
+            self.send_header("Location","/private" if value=="private" else "/companies")
+            self.end_headers()
+            return
         if route.path=="/review-editor.js":
             if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
             script=Path("/opt/qrscan/review_editor.js").read_bytes()
