@@ -123,7 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             switch=("<section class='mode-switch' aria-label='Arbeitsbereich'>"
                 "<strong>Arbeitsbereich:</strong> "
                 "<a href='/mode?value=private'"+(" aria-current='page'" if mode=="private" else "")+">Privat</a> · "
-                "<a href='/mode?value=company'"+(" aria-current='page'" if mode=="company" else "")+">Firma / DATEV</a></section>")
+                "<a href='/mode?value=company'"+(" aria-current='page'" if mode=="company" else "")+">Firma / DATEV</a> · "
+                "<a href='/configuration'"+(" aria-current='page'" if urlsplit(self.path).path=="/configuration" else "")+">Konfiguration</a></section>")
         else:
             switch=""
         payload=("<!doctype html><html lang='de'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"+STYLE+"<style>.mode-switch{padding:12px 18px;margin:8px 0}.mode-switch a{display:inline-block;padding:9px 12px;border-radius:7px;text-decoration:none}.mode-switch a[aria-current=page]{background:#263c58;color:white}</style><title>QR Scan Manager</title>"+switch+content+"</html>").encode()
@@ -363,6 +364,22 @@ class Handler(BaseHTTPRequestHandler):
                 page+="</select><label>Prüfnotiz</label><textarea name='note' maxlength='1000' rows='3'>"+esc(item["note"])+"</textarea><button>Prüfstatus speichern</button></form></article><hr>"
             page+="</section>"
             return self.page(page)
+        if route.path=="/configuration":
+            if self.password_needed():return self.password_form()
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            with db() as c:
+                count=c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0]
+                qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()
+            content=("<header><h1>Konfiguration</h1></header>"
+                "<section><h2>Allgemeine Einstellungen</h2>"
+                "<p>Verarbeitungsprofile insgesamt: "+str(count)+"</p>"
+                "<p><a href='/notifications'>E-Mail-Benachrichtigungen</a> · "
+                "<a href='/jobs'>Aufträge und Fehler</a> · "
+                "<a href='/review'>PDF-Prüffälle</a></p></section>"
+                "<section><h2>QR-Trenncode</h2><p class='small'>Gemeinsamer QR-Trenncode für aktivierte QR-Profile in beiden Arbeitsbereichen.</p>"
+                "<form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr[0] if qr else "",quote=True)+"' required>"
+                "<button>QR-Code speichern</button></form></section>")
+            return self.page(content)
         if route.path=="/private":
             if self.password_needed():return self.password_form()
             with db() as c:
@@ -838,7 +855,7 @@ class Handler(BaseHTTPRequestHandler):
                 if c.execute("SELECT 1 FROM company_profile_links WHERE profile_id=?",(ident,)).fetchone():
                     return self.page("Firmenprofil kann nur in der Firmenverwaltung geändert werden",409)
                 c.execute("DELETE FROM profiles WHERE id=?",(ident,))
-        self.send_response(303);self.send_header("Location","/companies" if self.path=="/qr" else "/");self.end_headers()
+        self.send_response(303);self.send_header("Location","/configuration" if self.path=="/qr" else "/");self.end_headers()
 
 if __name__=="__main__":
     DATA.mkdir(parents=True,exist_ok=True)
