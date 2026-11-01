@@ -19,6 +19,7 @@ from profile_settings import migrate,check,controls,SELECT
 import company_admin
 import company_processing
 import company_preflight
+import private_scans
 import review_queue
 import review_pdf
 import review_editor
@@ -44,6 +45,7 @@ def db():
     c.execute("INSERT OR IGNORE INTO settings VALUES ('qr_text','SCAN-TRENNUNG-001')")
     migrate(c)
     company_admin.migrate(c)
+    private_scans.migrate(c)
     c.commit()
     return c
 
@@ -258,7 +260,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             except (ValueError,FileNotFoundError,OSError) as exc:
                 return self.page("<h1>PDF nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",404)
-        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications"):return self.page("Nicht gefunden",404)
+        if route.path not in ("/","/jobs","/datev-review","/companies","/review","/duplicate-review","/duplicate-pdf","/notifications","/private"):return self.page("Nicht gefunden",404)
         if self.password_needed():return self.password_form()
         if route.path=="/notifications":
             if self.password_needed():return self.password_form()
@@ -330,6 +332,12 @@ class Handler(BaseHTTPRequestHandler):
                 page+="</select><label>Prüfnotiz</label><textarea name='note' maxlength='1000' rows='3'>"+esc(item["note"])+"</textarea><button>Prüfstatus speichern</button></form></article><hr>"
             page+="</section>"
             return self.page(page)
+        if route.path=="/private":
+            if self.password_needed():return self.password_form()
+            with db() as c:
+                response=samba_call({"action":"list"})
+                content=private_scans.render(c,response.get("shares",[]) if response.get("ok") else [])
+            return self.page(content)
         if route.path=="/companies":
             params=parse_qs(route.query)
             try:cid=int(params.get("company_id",["0"])[0])
@@ -340,7 +348,7 @@ class Handler(BaseHTTPRequestHandler):
                 content=company_preflight.render(c,share_state)+company_admin.render(c,cid,typ,share_state)
                 qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
                 content="<section><h2>QR-Trenncode (für alle Firmen)</h2><p class='small'>Gemeinsamer QR-Trenncode für bestehende und neue Verarbeitungsprofile.</p><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section>"+content
-            return self.page("<header><h1>Firmenverwaltung</h1><a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
+            return self.page("<header><h1>Firmenverwaltung</h1><a href='/private'>Private Scanaufträge</a> · <a href='/'>Zur Konfiguration</a></header>"+content+"<script src='/company-ui.js' defer></script>")
         if self.path=="/datev-review":
             entries=[]
             registry=DATA/"datev.sqlite3"
@@ -412,7 +420,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password","/private-create"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -421,6 +429,20 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/private-create":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    response=samba_call({"action":"list"})
+                    if not response.get("ok"):raise ValueError("Samba-Verwaltung nicht erreichbar")
+                    private_scans.create(c,get("username"),get("label"),get("input"),get("output"),response.get("shares",[]))
+                    c.commit()
+            except (ValueError,sqlite3.Error) as exc:
+                return self.page("<h1>Privatprofil konnte nicht gespeichert werden</h1><p>"+html.escape(str(exc))+"</p><a href='/private'>Zurück</a>",400)
+            self.send_response(303)
+            self.send_header("Location","/private")
+            self.end_headers()
+            return
         if self.path=="/review-editor-save":
             if self.password_needed():return self.password_form()
             try:
