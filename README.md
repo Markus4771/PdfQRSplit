@@ -1,6 +1,6 @@
 ## Arbeitsbereiche Privat und Firma / DATEV
 
-Die Weboberfläche enthält oben eine Umschaltung **Privat**, **Firma / DATEV** und **Übersicht**. Privat führt nach `/private` zu den privaten Benutzern mit mehreren SMB-Eingangs-/Ausgangspaaren, optionaler QR-Trennung, optionalem OCR und JPEG/PNG-Fotoprofilen. Firma / DATEV führt nach `/companies` zur Firmen-, Belegarten- und DATEV-Verwaltung. Die Auswahl ist reine Navigation und verändert keine aktiven Aufträge, Benutzerberechtigungen, gespeicherten Profile oder DATEV-Sperren. Die Umschaltung wird nur Administratoren gezeigt; eingeschränkte Firmen-Webbenutzer erhalten dadurch keine zusätzlichen Rechte.
+Die Weboberfläche enthält oben eine Umschaltung **Privat** und **Firma / DATEV**. Die Auswahl wird in einem Browser-Cookie gespeichert und bleibt beim erneuten Öffnen erhalten. Im Privatmodus führt `/` automatisch nach `/private`; die private Übersicht zeigt keine DATEV- oder Firmenverwaltung an. Privat führt nach `/private` zu den privaten Benutzern mit mehreren SMB-Eingangs-/Ausgangspaaren, optionaler QR-Trennung, optionalem OCR und JPEG/PNG-Fotoprofilen. Firma / DATEV führt nach `/companies` zur Firmen-, Belegarten- und DATEV-Verwaltung. Die Auswahl ist reine Navigation und verändert keine aktiven Aufträge, Benutzerberechtigungen, gespeicherten Profile oder DATEV-Sperren. Die Umschaltung wird nur Administratoren gezeigt; eingeschränkte Firmen-Webbenutzer erhalten dadurch keine zusätzlichen Rechte.
 
 # PdfQRSplit – QR Scan Manager
 
