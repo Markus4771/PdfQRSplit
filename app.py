@@ -378,13 +378,13 @@ class Handler(BaseHTTPRequestHandler):
                 profiles=scan_features.permitted_profiles(con,actor[0],actor==("admin",None))
             esc=lambda t:html.escape(str(t),quote=True)
             out="<header><h1>Scan-Aktionen</h1><p>E-Mail-Versand und Visitenkarten für private und geschäftliche Scanprofile ohne DATEV.</p></header>"
-            out+="<section><h2>Scan per E-Mail senden</h2><p>Eine bereits verarbeitete Datei im Ausgangs-Share auswählen. Maximal 20 MB.</p>"
+            out+="<section id='scan-email'><h2>Scan per E-Mail senden</h2><p>Eine bereits verarbeitete Datei im Ausgangs-Share auswählen. Maximal 20 MB.</p>"
             out+="<form method='post' action='/scan-email'><label>Profil</label><select name='profile_id'>"
             for pid,name,share in profiles:
                 out+="<option value='"+str(pid)+"'>"+esc(name)+" ("+esc(share)+")</option>"
             out+="</select><label>Dateiname aus dem Ausgangs-Share</label><input name='filename' required>"
             out+="<label>Empfänger</label><input type='email' name='recipient' required><button>Scan senden</button></form></section>"
-            out+="<section><h2>Visitenkarte erkennen</h2><p>Scanne eine Visitenkarte als JPG/PNG in ein Profil ohne DATEV. OCR liest einen Entwurf, den du vor dem Export korrigieren kannst.</p>"
+            out+="<section id='business-card'><h2>Visitenkarte erkennen</h2><p>Scanne eine Visitenkarte als JPG/PNG in ein Profil ohne DATEV. OCR liest einen Entwurf, den du vor dem Export korrigieren kannst.</p>"
             out+="<form method='post' action='/scan-card-read'><label>Profil</label><select name='profile_id'>"
             for pid,name,share in profiles:
                 out+="<option value='"+str(pid)+"'>"+esc(name)+" ("+esc(share)+")</option>"
