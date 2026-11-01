@@ -157,7 +157,7 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if actor and self.command=="POST" and route=="/private-update":
             with db() as con:
-                if company_web_access.private_role(con,actor[0])=="manage":return True
+                if company_web_access.private_role(con,actor[0])=="manage" and con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone():return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
     def password_needed(self):
@@ -177,7 +177,7 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             return
         if route.path=="/mode":
-            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            if self.actor()!=("admin",None):return self.page("Keine Berechtigung",403)
             value=parse_qs(route.query).get("value",[""])[0]
             if value not in ("private","company"):return self.page("Ungültiger Arbeitsbereich",400)
             self.send_response(303)
@@ -359,7 +359,7 @@ class Handler(BaseHTTPRequestHandler):
                 page+="<p><a href='/review-editor?signature="+esc(item["signature"])+"'>Interaktiver Seiteneditor</a> · <a href='/review-draft?signature="+esc(item["signature"])+"'>Korrekturentwurf herunterladen</a></p>"
                 if item["category"]=="duplicate":
                     page+="<p><a href='/duplicate-review?signature="+esc(item["signature"])+"'>Dublettenvergleich und Entscheidung</a></p>"
-                if self.actor()[0]=="admin":
+                if self.actor()==("admin",None):
                     page+="<form method='post' action='/review-draft-create'><input type='hidden' name='signature' value='"+esc(item["signature"])+"'><label>Seiten übernehmen (z. B. 1,3,4; leer = alle)</label><input name='pages' maxlength='512' placeholder='Alle Seiten'><label>Seiten drehen</label><select name='rotation'><option value='0'>Nicht drehen</option><option value='90'>90 Grad</option><option value='180'>180 Grad</option><option value='270'>270 Grad</option></select><button>Korrekturentwurf erstellen</button></form>"
 
                 if self.actor()[0]=="admin":
@@ -391,7 +391,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.password_needed():return self.password_form()
             with db() as c:
                 response=samba_call({"action":"list"})
-                if self.actor()[0]=="admin":
+                if self.actor()==("admin",None):
                     content=private_scans.render(c,response.get("shares",[]) if response.get("ok") else [])
                 else:
                     username=self.actor()[0]
