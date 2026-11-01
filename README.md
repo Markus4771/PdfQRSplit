@@ -40,6 +40,12 @@ In `/companies` unter **PDF-Verarbeitung** bietet die neue Auswahl *Scanmodus* d
 
 Die Vorlagen sind **keine globale Umschaltung**. Für getrennte Abläufe eigene Firmen/Profil- und Freigabezuordnungen verwenden. Bestehende DATEV-Profile werden nicht automatisch geändert. Auch im Privatmodus verwendet die Firmenverwaltung bislang das vorhandene Vier-Freigaben-Schema Eingang/Archiv/Ausgang/LOG; eine vereinfachte Zwei-Freigaben-Anlage ist noch nicht umgesetzt.
 
+## Fotos und optionale Verarbeitung in privaten Profilen
+
+Unter `/private` können beim Anlegen eines privaten Scanprofils QR-Code-Trennung und OCR getrennt aktiviert oder deaktiviert werden. Die Foto-Option erlaubt zusätzlich JPEG/JPG/PNG-Dateien im gleichen SMB-Eingang. Der Watcher prüft die Bilder, wartet auf abgeschlossene Schreibvorgänge und kopiert sie **bytegenau** in den zugewiesenen Ausgang (gleiche Dateiendung); Bilder werden nicht als PDF umgewandelt. Das Original im Eingang bleibt bestehen, und bereits vorhandene Ausgabedateien werden nicht überschrieben. Die Dateinamen im Ausgang können aus Kollisionsschutzgründen ergänzt werden.
+
+QR-Trennung und OCR werden ausschließlich auf PDF-Dateien angewendet. Die Foto-Option ist nur bei privaten Profilen nutzbar, nicht bei DATEV. Zum Bearbeiten bereits angelegter Privatprofile ist noch eine separate Editierfunktion nötig. Erst nach Datensicherung und Regressionstests installieren; zunächst mit Testbildern prüfen.
+
 ## Private Benutzer mit mehreren Scanfreigaben (Entwicklungsbranch)
 
 Unter `/private` kann der Administrator einen bereits registrierten SMB-Benutzer wählen und beliebig viele unterschiedliche Eingangs-/Ausgangspaare als private Verarbeitungsprofile anlegen. Jeder Eintrag wird über die bestehende `profiles`-Tabelle automatisch vom PDF-Watcher verarbeitet. Private Profile starten mit OCR und Leerseitenentfernung, ohne DATEV-Modus und ohne QR-Trennung. Die Profile sind separat in `private_scan_profiles` dem SMB-Benutzer zugeordnet, ohne Firmen- oder DATEV-Daten zu ändern.
