@@ -1,3 +1,9 @@
+## Private Eingangs- und Ausgangsfreigaben
+
+Unter `/private` gibt es nun die Funktion **Eingangs- und Ausgangs-Share anlegen**. Der Administrator gibt Benutzername, SMB-Passwort, Eingangs- und Ausgangs-Share ein. Beide Shares werden über den bestehenden Samba-Dienst für denselben Benutzer angelegt: Eingang beschreibbar und Ausgang für SMB-Clients schreibgeschützt. Die Scanverarbeitung selbst schreibt als Dienst in das Ausgangsverzeichnis.
+
+Ein bereits von PdfQRSplit verwaltetes SMB-Konto kann mit seinem gültigen Passwort wiederverwendet werden. Es wird kein zweites Passwort erzeugt. Bei Fehlern nach Anlage des Eingangs bleibt die Freigabe bewusst erhalten und die Oberfläche meldet den Teilfehler, anstatt Datenverzeichnisse zu löschen. Anschließend können beide Shares einem privaten Scanprofil zugeordnet werden. Die Anlage erzeugt **nicht** automatisch ein Verarbeitungsprofil.
+
 ## Neue private Verwaltungseinstellungen (Entwicklungsstand)
 
 Im privaten Arbeitsbereich `/private` können Administrierende für bestehende Privatprofile zusätzlich QR-Trennblätter, Randbeschnitt, automatische Seitenrotation, Entzerrung, Leerseitenschwelle, OCR-Sprache und OCR-PDF-Format konfigurieren. Es werden ausschließlich zu privaten Profilen gehörige Felder geändert; DATEV-Profile bleiben getrennt. Die Formularwerte werden serverseitig validiert.
