@@ -17,4 +17,4 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q .
       - name: Security and private profile regression tests
-        run: python -m unittest -v test_private_scans test_company_web_access test_config_users
+        run: python -m unittest -v test_private_scans test_company_web_access test_config_users test_scan_features
