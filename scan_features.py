@@ -41,3 +41,34 @@ def business_card_vcard(name,company,email,phone):
     if email and not valid_recipient(email):raise ValueError("Ungültige E-Mail")
     esc=lambda x:x.replace("\\","\\\\").replace(";","\\;").replace(",","\\,")
     return "BEGIN:VCARD\r\nVERSION:3.0\r\nFN:"+esc(name)+"\r\nORG:"+esc(company)+"\r\nEMAIL:"+email+"\r\nTEL:"+esc(phone)+"\r\nEND:VCARD\r\n"
+
+def send_scan(settings,path,recipient):
+    """Explicit SMTP send of one checked attachment; never deletes source."""
+    import smtplib
+    import ssl
+    from email.message import EmailMessage
+    if not valid_recipient(recipient):raise ValueError("Ungültige Empfängeradresse")
+    if settings.get("mode") not in ("ssl","starttls") or not settings.get("host") or not settings.get("sender"):
+        raise ValueError("SMTP muss zunächst konfiguriert werden")
+    content=path.read_bytes()
+    if len(content)>20*1024*1024:raise ValueError("Datei zu groß")
+    mail=EmailMessage()
+    mail["From"]=settings["sender"]
+    mail["To"]=recipient
+    mail["Subject"]="Scan: "+path.name
+    mail.set_content("Im Anhang befindet sich der angeforderte Scan.")
+    kinds={".pdf":("application","pdf"),".jpg":("image","jpeg"),".jpeg":("image","jpeg"),".png":("image","png"),".vcf":("text","vcard")}
+    kind=kinds[path.suffix.lower()]
+    mail.add_attachment(content,maintype=kind[0],subtype=kind[1],filename=path.name)
+    context=ssl.create_default_context()
+    if settings["mode"]=="ssl":
+        with smtplib.SMTP_SSL(settings["host"],int(settings["port"]),timeout=15,context=context) as smtp:
+            if settings.get("username"):smtp.login(settings["username"],settings["secret"])
+            smtp.send_message(mail)
+    else:
+        with smtplib.SMTP(settings["host"],int(settings["port"]),timeout=15) as smtp:
+            smtp.ehlo()
+            smtp.starttls(context=context)
+            smtp.ehlo()
+            if settings.get("username"):smtp.login(settings["username"],settings["secret"])
+            smtp.send_message(mail)
