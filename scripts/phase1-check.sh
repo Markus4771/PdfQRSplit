@@ -6,7 +6,7 @@ PYTHON="${PYTHON:-python3}"
 echo "[1/3] Python syntax validation"
 "$PYTHON" -m compileall -q .
 echo "[2/3] Private profiles, access control and user configuration"
-"$PYTHON" -m unittest -v test_private_scans test_company_web_access test_config_users
+"$PYTHON" -m unittest -v test_private_scans test_company_web_access test_config_users test_scan_features
 echo "[3/3] Optional SQLite integrity check (read-only)"
 if [[ -n "${QRSCAN_TEST_DB:-}" ]]; then
   DB="$QRSCAN_TEST_DB" "$PYTHON" - <<'PY'
