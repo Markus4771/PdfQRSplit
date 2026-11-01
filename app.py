@@ -158,7 +158,8 @@ class Handler(BaseHTTPRequestHandler):
             return True
         if actor and self.command=="POST" and route in ("/private-update","/scan-email","/scan-vcard"):
             with db() as con:
-                if (route in ("/scan-email","/scan-vcard") or company_web_access.private_role(con,actor[0])=="manage") and con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone():return True
+                if route in ("/scan-email","/scan-vcard") and (con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone() or actor[1]):return True
+                if route=="/private-update" and company_web_access.private_role(con,actor[0])=="manage" and con.execute("SELECT 1 FROM private_scan_profiles WHERE username=? LIMIT 1",(actor[0],)).fetchone():return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
     def password_needed(self):
@@ -405,7 +406,7 @@ class Handler(BaseHTTPRequestHandler):
                 "<section><h2>QR-Trenncode</h2><p class='small'>Gemeinsamer QR-Trenncode für aktivierte QR-Profile in beiden Arbeitsbereichen.</p>"
                 "<form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr[0] if qr else "",quote=True)+"' required>"
                 "<button>QR-Code speichern</button></form></section>")
-            return self.page(content+users_page)
+            return self.page(content+users_page+"<p><a href='/scan-actions'>Scan-Aktionen (E-Mail / Visitenkarten)</a></p>")
         if route.path=="/private":
             if self.password_needed():return self.password_form()
             with db() as c:
@@ -417,7 +418,7 @@ class Handler(BaseHTTPRequestHandler):
                     assigned=c.execute("SELECT x.label,p.input_share,p.output_share FROM private_scan_profiles x JOIN profiles p ON p.id=x.profile_id WHERE x.username=? ORDER BY x.label",(username,)).fetchall()
                     role=company_web_access.private_role(c,username)
                     content=private_scans.render_user(c,username,role)
-            return self.page(content)
+            return self.page(content+"<p><a href='/scan-actions'>Scan-Aktionen (E-Mail / Visitenkarten)</a></p>")
         if route.path=="/companies":
             params=parse_qs(route.query)
             try:cid=int(params.get("company_id",["0"])[0])
