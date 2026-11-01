@@ -24,11 +24,7 @@ def inspect(con,share_data):
             opt=effective(con,cid,typ)
             issues=[]
             if opt["datev_mode"] and not opt["qr_split"]:
-                issues.append("DATEV-Modus benötigt QR-Trennung")
-            if not opt["qr_split"]:
-                issues.append("QR-Trennung deaktiviert")
-            if not opt["ocr"]:
-                issues.append("OCR deaktiviert")
+                issues.append("QR-Trennung für DATEV fehlt")
             if opt["crop"]:
                 issues.append("Ränder-Beschneiden ist aktiviert: Ergebnis prüfen")
             if opt["remove_separators"] is False and opt["datev_mode"]:
