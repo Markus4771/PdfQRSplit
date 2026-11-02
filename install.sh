@@ -28,7 +28,7 @@ if ! apt-get update; then
 fi
 apt-get install -y --no-install-recommends \
   ca-certificates python3 python3-venv python3-pip python3-dev \
-  build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
+  build-essential pkg-config libzbar0t64 libzbar-dev libgl1 libglib2.0-0t64 \
   poppler-utils ghostscript qpdf imagemagick default-jre-headless \
   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
   samba smbclient acl python3-cryptography sudo git curl
@@ -91,7 +91,7 @@ python3 -m venv /opt/qrscan/venv
 /opt/qrscan/venv/bin/python -m pip install --disable-pip-version-check --upgrade pip
 # Installiert die Python-Abhängigkeiten für QR- und PDF-Analyse.
 /opt/qrscan/venv/bin/pip install --disable-pip-version-check \
-  pypdf zxing pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
+  pypdf pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
   "scan-pdf-cleaner-cli==1.0.0"
 echo "[4/8] QR-Trennwerkzeug bereitstellen"
 # Externe QR-Engine getrennt halten, sodass Updates der eigenen App sie nicht überschreiben.
