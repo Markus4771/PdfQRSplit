@@ -28,7 +28,7 @@ if ! apt-get update; then
 fi
 apt-get install -y --no-install-recommends \
   ca-certificates python3 python3-venv python3-pip python3-dev \
-  build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
+  build-essential pkg-config libzbar0t64 libzbar-dev libgl1 libglib2.0-0t64 \
   poppler-utils ghostscript qpdf imagemagick default-jre-headless \
   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
   samba smbclient acl python3-cryptography sudo git curl
@@ -90,7 +90,7 @@ python3 -m venv /opt/qrscan/venv
 /opt/qrscan/venv/bin/python -m pip install --disable-pip-version-check --upgrade pip
 # Installiert die Python-Abhängigkeiten für QR- und PDF-Analyse.
 /opt/qrscan/venv/bin/pip install --disable-pip-version-check \
-  pypdf pypdf4 zxing pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
+  pypdf pypdf4 pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
   "scan-pdf-cleaner-cli==1.0.0"
 echo "[4/7] QR-Trennwerkzeug bereitstellen"
 # Externe QR-Engine getrennt halten, sodass Updates der eigenen App sie nicht überschreiben.
@@ -262,7 +262,7 @@ systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
-/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive test_company_admin test_company_processing test_profile_logs test_company_monitor test_review_queue test_review_pdf test_duplicate_review test_notifications test_company_web_access
+    /opt/qrscan/venv/bin/python -m unittest discover -v -s /opt/qrscan -p 'test_*.py'
 echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
 if ! bash ./install_fluent_bit.sh; then
   echo "WARNUNG: Fluent Bit konnte nicht installiert/aktualisiert werden; QR Scan Manager bleibt betriebsbereit." >&2
