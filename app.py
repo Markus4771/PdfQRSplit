@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """QR Scan Manager: protected LAN web UI and profile configuration."""
 import base64
+import contextlib
 import hashlib
 import hmac
 import html
@@ -10,6 +11,7 @@ import re
 import secrets
 import socket
 import sqlite3
+import sqlite_util
 import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -31,7 +33,15 @@ DB=DATA/"profiles.sqlite3"
 PORT=int(os.getenv("QRSCAN_PORT","8086"))
 NAME=re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
 FIELDS=("qr_split","remove_separators","remove_blank","crop","ocr")
+_UNSET=object()
 def db():
+    """Open the profile database with a connection that is closed on exit.
+
+    sqlite3's own context manager only commits and rolls back; it keeps the
+    connection and its file descriptor open. Every request opens several of
+    these, so the connection is closed explicitly via a dedicated context
+    manager instead.
+    """
     c=sqlite3.connect(DB)
     c.execute("""CREATE TABLE IF NOT EXISTS profiles(
     id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, input_share TEXT NOT NULL,
@@ -44,6 +54,16 @@ def db():
     company_admin.migrate(c)
     c.commit()
     return c
+
+@contextlib.contextmanager
+def db_session():
+    """Yield a database connection and close it on exit, committing on success."""
+    c=db()
+    try:
+        with c:
+            yield c
+    finally:
+        c.close()
 
 def shares():
     """Only manager-owned shares under designated root, never arbitrary filesystem paths."""
@@ -96,6 +116,48 @@ def samba_call(payload):
     except (OSError,ValueError):
         return {"ok":False,"error":"Samba-Verwaltungsdienst nicht erreichbar"}
 
+def trusted_origins():
+    """Additional origins allowed for state-changing requests, e.g. a reverse proxy."""
+    raw=os.getenv("QRSCAN_TRUSTED_ORIGINS","")
+    return {item.strip().rstrip("/") for item in raw.split(",") if item.strip()}
+
+def origin_allowed(origin,host):
+    """Accept the request origin only when it addresses this very host.
+
+    The scheme may differ from the host header because a TLS-terminating
+    reverse proxy forwards the original Host while the browser sends the
+    https origin.
+    """
+    try:
+        parsed=urlsplit(origin)
+    except ValueError:
+        return False
+    if parsed.scheme not in ("http","https"):return False
+    if parsed.path not in ("","/") or parsed.query or parsed.fragment:return False
+    try:
+        origin_host=parsed.hostname
+        origin_port=parsed.port
+        request=urlsplit("//"+host)
+        request_host=request.hostname
+        request_port=request.port
+    except ValueError:
+        return False
+    if not origin_host or not request_host:return False
+    if origin_host.lower()!=request_host.lower():return False
+    # A port is part of the origin. Ignore it only when one side omits it and
+    # the other uses the default port of its scheme.
+    default_origin=443 if parsed.scheme=="https" else 80
+    if origin_port is None:origin_port=default_origin
+    if request_port is None:request_port=default_origin
+    return origin_port==request_port
+
+def samba_shares():
+    """List the managed Samba shares; fail closed when the service is down."""
+    response=samba_call({"action":"list"})
+    if not response.get("ok"):
+        raise ValueError("Samba-Verwaltungsdienst nicht erreichbar: "+response.get("error","Unbekannter Fehler"))
+    return {x.get("name") for x in response.get("shares",[]) if isinstance(x,dict)}
+
 
 def ensure_datev_samba_protection(name):
     """Require an explicitly selected DATEV output and switch SMB clients to read-only."""
@@ -113,6 +175,11 @@ def ensure_datev_samba_protection(name):
 STYLE="""<style>body{font:15px system-ui;background:#f5f6f8;color:#26292e;max-width:1080px;margin:35px auto;padding:0 16px}header{display:flex;justify-content:space-between;align-items:center}section{background:white;border:1px solid #ddd;border-radius:12px;padding:22px;margin:18px 0}input,select{width:100%;box-sizing:border-box;padding:10px;margin:6px 0 14px;border:1px solid #ccc;border-radius:7px}input[type=checkbox]{width:auto;margin:0 7px 0 0}label{display:block;margin:8px 0}button{background:#26292e;color:white;padding:11px 17px;border:0;border-radius:8px;cursor:pointer}.row{display:grid;grid-template-columns:1fr 1fr;gap:16px}.small{color:#666;font-size:13px}.notice{color:#964514}@media(max-width:700px){.row{grid-template-columns:1fr}}</style>"""
 
 class Handler(BaseHTTPRequestHandler):
+    def handle_one_request(self):
+        # A single request may ask for the caller many times; the resolved
+        # identity is cached for the duration of that request only.
+        self._actor_cache=_UNSET
+        super().handle_one_request()
     def page(self, content, status=200, unauthorized=False):
         payload=("<!doctype html><html lang='de'><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'>"+STYLE+"<title>QR Scan Manager</title>"+content+"</html>").encode()
         self.send_response(status)
@@ -124,8 +191,17 @@ class Handler(BaseHTTPRequestHandler):
         if unauthorized:self.send_header("WWW-Authenticate",'Basic realm="QR Scan Manager"')
         self.end_headers();self.wfile.write(payload)
     def actor(self):
-        if valid_auth(self.headers.get("Authorization","")):return ("admin",None)
-        with db() as c:return company_web_access.authenticate(c,self.headers.get("Authorization",""))
+        """Resolve the caller once per request.
+
+        Authentication hashes the password with PBKDF2, so the result is cached
+        to keep repeated lookups on the same request cheap.
+        """
+        if self._actor_cache is not _UNSET:
+            return self._actor_cache
+        if valid_auth(self.headers.get("Authorization","")):self._actor_cache=("admin",None)
+        else:
+            with db_session() as c:self._actor_cache=company_web_access.authenticate(c,self.headers.get("Authorization",""))
+        return self._actor_cache
     def guard(self):
         actor=self.actor()
         route=urlsplit(self.path).path
@@ -133,6 +209,10 @@ class Handler(BaseHTTPRequestHandler):
             return True
         self.page("<h1>Keine Berechtigung</h1>" if actor else "<h1>Anmeldung erforderlich</h1>",403 if actor else 401,not bool(actor))
         return False
+    def origin_allowed(self,origin):
+        """Check a state-changing request origin against this host."""
+        if origin.rstrip("/") in trusted_origins():return True
+        return origin_allowed(origin,self.headers.get("Host",""))
     def password_needed(self):
         return bool(json.loads(AUTH.read_text()).get("must_change"))
     def password_form(self,msg=""):
@@ -159,11 +239,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.page("Ungültige Prüfkennung",400)
             registry=DATA/"datev.sqlite3"
             try:
-                with db() as c:
+                with db_session() as c:
                     job=c.execute("""SELECT j.file FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id
                         WHERE j.signature=?""",(signature,)).fetchone()
                     if not job:raise ValueError("Prüfauftrag nicht vorhanden")
-                with sqlite3.connect("file:"+str(registry)+"?mode=ro",uri=True) as con:
+                with sqlite_util.session("file:"+str(registry)+"?mode=ro",uri=True) as con:
                     rows=duplicate_review.cases(con,job[0])
                 esc=lambda v:html.escape(str(v),quote=True)
                 page="<header><h1>Dublettenprüfung</h1><a href='/review'>Zur Prüfwarteschlange</a></header><section><p>Quelle: "+esc(Path(job[0]).name)+"</p>"
@@ -181,7 +261,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.password_needed():return self.password_form()
             digest=parse_qs(route.query).get("digest",[""])[0]
             try:
-                with sqlite3.connect("file:"+str(DATA/"datev.sqlite3")+"?mode=ro",uri=True) as con:
+                with sqlite_util.session("file:"+str(DATA/"datev.sqlite3")+"?mode=ro",uri=True) as con:
                     path=duplicate_review.inspected_pdf(con,digest,"suspect",DATA/"datev-review",ROOT)
                 size=path.stat().st_size
                 if size>100*1024*1024:raise ValueError("Datei zu groß")
@@ -204,7 +284,7 @@ class Handler(BaseHTTPRequestHandler):
             if self.password_needed():return self.password_form()
             token=parse_qs(route.query).get("signature",[""])[0]
             try:
-                with db() as c:
+                with db_session() as c:
                     actor=self.actor()
                     if actor[0]!="admin" and not company_web_access.owns_job(c,token,actor[1]):raise ValueError("Keine Berechtigung")
                     if route.path=="/review-pdf":
@@ -234,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.password_needed():return self.password_form()
         if route.path=="/notifications":
             if self.password_needed():return self.password_form()
-            with db() as c:cfg=notifications.config(c)
+            with db_session() as c:cfg=notifications.config(c)
             esc=lambda v:html.escape(str(v),quote=True)
             out="<header><h1>E-Mail-Benachrichtigungen</h1><a href='/review'>PDF-Prüfwarteschlange</a></header><section><h2>SMTP-Einstellungen</h2>"
             out+="<p class='small'>Warnungen werden an die zugeordneten Firmenbenutzer mit hinterlegter E-Mail-Adresse versendet. Ohne Aktivierung kein E-Mail-Versand.</p>"
@@ -254,7 +334,7 @@ class Handler(BaseHTTPRequestHandler):
             doctype=params.get("type",[""])[0]
             state=params.get("state",["active"])[0]
             if state not in ("active",*review_queue.STATES):state="active"
-            with db() as c:
+            with db_session() as c:
                 actor=self.actor()
                 permitted=actor[1] if actor[0]!="admin" else None
                 firms=[r for r in c.execute("SELECT id,code FROM companies ORDER BY code") if permitted is None or r[0] in permitted]
@@ -300,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
             try:cid=int(params.get("company_id",["0"])[0])
             except ValueError:cid=None
             typ=params.get("doc_type",[""])[0]
-            with db() as c:
+            with db_session() as c:
                 content=company_admin.render(c,cid,typ,samba_call({"action":"list"}))
                 qr=c.execute("SELECT value FROM settings WHERE key='qr_text'").fetchone()[0]
                 content="<section><h2>QR-Trenncode (für alle Firmen)</h2><p class='small'>Gemeinsamer QR-Trenncode für bestehende und neue Verarbeitungsprofile.</p><form method='post' action='/qr'><input name='qr' maxlength='256' value='"+html.escape(qr,quote=True)+"' required><button>QR-Code speichern</button></form></section>"+content
@@ -309,7 +389,7 @@ class Handler(BaseHTTPRequestHandler):
             entries=[]
             registry=DATA/"datev.sqlite3"
             if registry.is_file():
-                with sqlite3.connect("file:"+str(registry)+"?mode=ro",uri=True) as con:
+                with sqlite_util.session("file:"+str(registry)+"?mode=ro",uri=True) as con:
                     tables={r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")}
                     if "datev_suspects" in tables:
                         columns={r[1] for r in con.execute("PRAGMA table_info(datev_suspects)")}
@@ -317,7 +397,7 @@ class Handler(BaseHTTPRequestHandler):
                             entries=con.execute("SELECT digest,source,matching_digest,review_path FROM datev_suspects ORDER BY created_at DESC LIMIT 200").fetchall()
             actor=self.actor()
             if actor[0]!="admin":
-                with db() as c:
+                with db_session() as c:
                     marks=",".join("?" for _ in actor[1])
                     allowed={r[0] for r in c.execute("SELECT j.file FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id WHERE l.company_id IN ("+marks+")",tuple(sorted(actor[1])))}
                 entries=[entry for entry in entries if entry[1] in allowed]
@@ -330,7 +410,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.page("<header><h1>DATEV-Prüfbereich</h1>"+("<a href='/jobs'>Aufträge & Fehler</a>" if actor[0]=="admin" else "<a href='/review'>PDF-Prüffälle</a>")+"</header><section>"+
                 ("".join(lines) or "Keine Verdachtsfälle")+"</section>")
         if self.path=="/jobs":
-            with db(): pass
+            with db_session(): pass
             totals,rows,retention=dashboard(DB)
             counts="".join("<b>"+html.escape(k)+": "+str(v)+"</b> &nbsp; " for k,v in sorted(totals.items()))
             lines=[]
@@ -355,8 +435,10 @@ class Handler(BaseHTTPRequestHandler):
                              "<section><h2>Datenbank-Aufbewahrung</h2><form method='post' action='/retention'><label>Abgeschlossene und fehlgeschlagene Aufträge nach Tagen entfernen (7–3650)</label><input type='number' min='7' max='3650' name='days' value='"+str(retention)+"' required><button>Aufbewahrung speichern</button></form><p class='small'>Standard: 90 Tage. Nur Auftragseinträge werden bereinigt; PDFs bleiben unverändert. Die Bereinigung erfolgt automatisch durch den Watcher.</p></section>"
                              "<section><h2>Letzte 100 Aufträge</h2>"+("".join(lines) or "Noch keine Aufträge")+"</section>"
                              "<p class='small'>Bei Wiederholung abgeschlossener Aufträge werden neue Ausgabedateien mit eigenem Namenszusatz erstellt. "
+                             "Im DATEV-Sicherheitsmodus werden identische PDF-Bytes dagegen nie erneut übergeben; "
+                             "der Beleg gilt dann bereits als übergeben. "
                              "Bei Konflikten bleibt der Auftrag fehlgeschlagen.</p>")
-        with db() as c:
+        with db_session() as c:
             profile_count=c.execute("SELECT COUNT(*) FROM profiles").fetchone()[0]
             legacy=c.execute("""SELECT COUNT(*) FROM profiles p LEFT JOIN company_profile_links l
                 ON p.id=l.profile_id WHERE l.profile_id IS NULL""").fetchone()[0]
@@ -378,7 +460,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self.guard():return
         if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
-        if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
+        if origin and not self.origin_allowed(origin):return self.page("Ungültiger Ursprung",403)
         try:
             length=int(self.headers.get("Content-Length","0"))
             if length>8192 or length<1:raise ValueError()
@@ -388,7 +470,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=="/review-draft-create":
             if self.password_needed():return self.password_form()
             try:
-                with db() as c:
+                with db_session() as c:
                     draft=review_pdf.prepare_draft(c,get("signature"),DATA/"review-drafts",ROOT,DATA/"original-archive",get("pages"),int(get("rotation")))
                     review_queue.set_case(c,get("signature"),"in_progress","Korrekturentwurf erstellt; noch nicht an DATEV übergeben")
                     c.commit()
@@ -402,12 +484,12 @@ class Handler(BaseHTTPRequestHandler):
             if self.password_needed():return self.password_form()
             try:
                 signature=get("signature")
-                with db() as c:
+                with db_session() as c:
                     source=c.execute("""SELECT j.file FROM jobs j JOIN company_profile_links l ON l.profile_id=j.profile_id
                         WHERE j.signature=?""",(signature,)).fetchone()
                     if not source:raise ValueError("Prüfauftrag nicht vorhanden")
                 registry=DATA/"datev.sqlite3"
-                with sqlite3.connect(registry,timeout=10) as con:
+                with sqlite_util.session(registry) as con:
                     rows=duplicate_review.cases(con,source[0])
                     if get("digest") not in {row[0] for row in rows}:raise ValueError("Dublette nicht diesem Auftrag zugeordnet")
                     duplicate_review.decision(con,get("digest"),get("decision"),get("note"))
@@ -420,7 +502,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path in ("/company-user-email","/company-web-password"):
             try:
-                with db() as c:
+                with db_session() as c:
                     if self.path=="/company-user-email":company_admin.save_email(c,get("username"),get("email"))
                     else:company_web_access.set_password(c,get("username"),get("password"))
                     c.commit()
@@ -430,7 +512,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=="/notifications-save":
             if self.password_needed():return self.password_form()
             try:
-                with db() as c:
+                with db_session() as c:
                     current=notifications.config(c)
                     settings=dict(host=get("host").strip(),port=int(get("port")),username=get("username").strip(),
                         secret=get("secret") or current["secret"],sender=get("sender").strip(),
@@ -443,7 +525,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path=="/review-update":
             if self.password_needed():return self.password_form()
             try:
-                with db() as c:
+                with db_session() as c:
                     review_queue.set_case(c,get("signature"),get("state"),get("note"))
                     c.commit()
             except (ValueError,sqlite3.Error) as exc:
@@ -459,7 +541,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.password_needed():return self.password_form()
         if self.path.startswith("/company-"):
             try:
-                with db() as c:
+                with db_session() as c:
                     if self.path=="/company-create":
                         company_admin.save_company(c,get("code"),get("display_name"),data.get("type",[]))
                     elif self.path=="/company-types":
@@ -497,26 +579,28 @@ class Handler(BaseHTTPRequestHandler):
                     elif self.path=="/company-access":
                         company_admin.change_access(c,int(get("company_id")),get("username"),get("role"))
                     elif self.path=="/company-users-save":
-                        ident=int(get("company_id"))
-                        chosen=data.get("username",[])
-                        company_admin.save_user_selection(c,ident,chosen,get("role"))
-                        # Apply revocations immediately on existing generated shares.
-                        row=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
-                        existing={x["name"] for x in samba_call({"action":"list"}).get("shares",[])}
-                        belonging=[company_admin.share_name(row[0],t[0],fn) for t in c.execute("SELECT doc_type FROM company_types WHERE company_id=?",(ident,)) for fn in company_admin.FUNCTIONS]
-                        if any(name in existing for name in belonging):
-                            if not chosen:raise ValueError("Bei bestehenden Firmenfreigaben muss mindestens ein Benutzer berechtigt bleiben")
-                            reply=samba_call({"action":"company-sync-shares","specs":company_admin.share_specs(c,ident)})
-                            if not reply.get("ok"):raise ValueError(reply.get("error","Samba-Zugriffsrechte konnten nicht synchronisiert werden"))
+                            ident=int(get("company_id"))
+                            chosen=data.get("username",[])
+                            # Resolve the managed shares first: when Samba is unreachable the
+                            # revocation below would be skipped silently and the removed user
+                            # would keep full access to the company folders.
+                            existing=samba_shares()
+                            company_admin.save_user_selection(c,ident,chosen,get("role"))
+                            # Apply revocations immediately on existing generated shares.
+                            row=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
+                            belonging=[company_admin.share_name(row[0],t[0],fn) for t in c.execute("SELECT doc_type FROM company_types WHERE company_id=?",(ident,)) for fn in company_admin.FUNCTIONS]
+                            if any(name in existing for name in belonging):
+                                if not chosen:raise ValueError("Bei bestehenden Firmenfreigaben muss mindestens ein Benutzer berechtigt bleiben")
+                                reply=samba_call({"action":"company-sync-shares","specs":company_admin.share_specs(c,ident)})
+                                if not reply.get("ok"):raise ValueError(reply.get("error","Samba-Zugriffsrechte konnten nicht synchronisiert werden"))
                     elif self.path=="/company-delete":
                         if get("confirm")!="yes":raise ValueError("Löschen muss ausdrücklich bestätigt werden")
                         ident=int(get("company_id"))
                         row=c.execute("SELECT code FROM companies WHERE id=?",(ident,)).fetchone()
                         if not row:raise ValueError("Firma existiert nicht")
                         prefix=row[0]+"-"
-                        smb=samba_call({"action":"list"})
-                        if not smb.get("ok"):raise ValueError("Samba-Freigaben konnten nicht geprüft werden")
-                        if any(x["name"].lower().startswith(prefix.lower()) for x in smb.get("shares",[])):
+                        existing=samba_shares()
+                        if any(name.lower().startswith(prefix.lower()) for name in existing):
                             raise ValueError("Firma besitzt noch Samba-Freigaben. Aus Sicherheitsgründen zuerst gesondert migrieren; keine Dateien werden gelöscht.")
                         if c.execute("SELECT 1 FROM profiles WHERE input_share LIKE ? OR output_share LIKE ? OR archive_share LIKE ? LIMIT 1",(prefix+"%",prefix+"%",prefix+"%")).fetchone():
                             raise ValueError("Firma wird noch in Verarbeitungsprofilen verwendet")
@@ -587,13 +671,13 @@ class Handler(BaseHTTPRequestHandler):
             if action=="password":payload["password"]=get("password")
             if action=="update":payload.update(writable=get("writable")=="yes",user=get("user").strip(),password=get("password"))
             if action=="delete":
-                with db() as con:
+                with db_session() as con:
                     used=con.execute("SELECT COUNT(*) FROM profiles WHERE input_share=? OR output_share=? OR archive_share=?",(get("name"),get("name"),get("name"))).fetchone()[0]
                 if used:return self.page("<h1>Freigabe ist noch einem Profil zugeordnet</h1>",409)
             outcome=samba_call(payload)
             if not outcome.get("ok"):return self.page("<h1>Samba-Fehler</h1><p>"+html.escape(outcome.get("error","Fehler"))+"</p>",400)
             self.send_response(303);self.send_header("Location","/");self.end_headers();return
-        with db() as c:
+        with db_session() as c:
             if self.path=="/qr":
                 value=get("qr").strip()
                 if not value or len(value)>256:return self.page("Ungültiger QR-Inhalt",400)
@@ -655,5 +739,5 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=="__main__":
     DATA.mkdir(parents=True,exist_ok=True)
     if not AUTH.exists():raise SystemExit("Auth-Datei fehlt. Installer ausführen.")
-    with db():pass
+    with db_session():pass
     ThreadingHTTPServer((os.getenv("QRSCAN_BIND","127.0.0.1"),PORT),Handler).serve_forever()

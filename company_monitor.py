@@ -20,6 +20,10 @@ def classify(status,details):
     message=str(data.get("message") or data.get("error") or data.get("archive_warning") or (details if not isinstance(details,dict) else "") or "")
     low=message.lower()
     category=next((category for category,words in CATEGORIES if any(word in low for word in words)),"other")
+    if data.get("duplicates") and not message:
+        # Identical bytes are never handed to DATEV twice. Name the reason so that
+        # the review queue and the notification carry a usable text.
+        message="Beleg bereits identisch an DATEV übergeben; eine erneute Übergabe wurde verhindert."
     warning=bool(status=="done" and (data.get("archive_warning") or data.get("duplicates")))
     if warning and data.get("duplicates"):category="duplicate"
     if warning and data.get("archive_warning"):category="archive"

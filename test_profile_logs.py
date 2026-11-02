@@ -9,6 +9,7 @@ class TestProfileLogs(unittest.TestCase):
     def test_only_linked_profile_has_log(self):
         with tempfile.TemporaryDirectory() as folder:
             con=sqlite3.connect(":memory:")
+            self.addCleanup(con.close)
             con.execute("CREATE TABLE companies(id INTEGER,code TEXT)")
             con.execute("CREATE TABLE company_profile_links(company_id INTEGER,doc_type TEXT,profile_id INTEGER)")
             con.execute("INSERT INTO companies VALUES (1,'10001')")

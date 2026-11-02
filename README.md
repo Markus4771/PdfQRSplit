@@ -114,7 +114,7 @@ Achtung: Die bisherige Stirling-Freigabenverwaltung verwendet eine eigenständig
 
 ## Vollständiger Abhängigkeits-Installer
 
-`install.sh` installiert auf Debian die **benötigten Laufzeitpakete und Python-Bibliotheken** in einer eigenen virtuellen Umgebung: Samba, PDF-Werkzeuge, PdfQRSplit samt Java/ZXing/PyPDF4, Scan PDF Cleaner, OCRmyPDF/Tesseract (Deutsch und Englisch), OpenCV und die Web-GUI. Voraussetzung: `sudo`, `git` und `curl` dürfen schon installiert sein; Git wird nur für den Repository-Checkout genutzt. Debian 13 ist Zielplattform.
+`install.sh` installiert auf Debian die **benötigten Laufzeitpakete und Python-Bibliotheken** in einer eigenen virtuellen Umgebung: Samba, PDF-Werkzeuge, PdfQRSplit samt PyMuPDF, Scan PDF Cleaner, OCRmyPDF/Tesseract (Deutsch und Englisch), OpenCV, pyzbar für die QR-Erkennung und die Web-GUI. Voraussetzung: `sudo`, `git` und `curl` dürfen schon installiert sein; Git wird nur für den Repository-Checkout genutzt. Debian 13 ist Zielplattform.
 
 ```bash
 git clone https://github.com/Markus4771/PdfQRSplit.git
@@ -237,14 +237,14 @@ Bestehende Profile sind jetzt direkt in der Weboberfläche bearbeitbar: Name, Sa
 Tests (auf dem späteren Debian-System):
 ```bash
 cd /opt/qrscan
-/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish
+/opt/qrscan/venv/bin/python -m unittest discover -v -s . -p 'test_*.py'
 ```
 
 **Grenzen:** Bei Stromausfall während der Veröffentlichung kann bereits eine Teilmenge fertiger Dokumente im Ziel liegen. Der Auftrag wird beim Neustart als unterbrochen markiert und muss kontrolliert geprüft werden; die Ausgaben werden nicht automatisch überschrieben. Die Dateistabilitätsprüfung ist keine verbindliche Scanner-Upload-Abschlussmeldung. Hardlinks erfordern einen lokal kompatiblen Ziel-Dateisystemtyp und eine gemeinsame Partition für die temporären und finalen Ausgaben. **Noch kein vollständiger Debian-13-Livetest.**
 
 ## Punkt 4 – Debian-13-Testvorbereitung
 
-GitHub Actions Workflow `.github/workflows/debian13.yml` prüft bei Push/Pull Request in einem `debian:13`-Container `bash -n install.sh`, Python-Syntax aller Hauptmodule und die nichtdestruktiven Veröffentlichungs-Regressionstests. Er installiert **nicht** Samba als aktiven Dienst und ist kein vollständiger End-to-End-Test. Den Workflow-Status in GitHub Actions kontrollieren; er wurde nach Erstellung noch nicht als erfolgreich bestätigt.
+    GitHub Actions Workflow `.github/workflows/debian13.yml` prüft bei Push/Pull Request in einem `debian:13`-Container `bash -n install.sh`, Python-Syntax aller Hauptmodule und die vollständige Regressionstestsuite (81 Tests). Der Workflow ist erfolgreich bestätigt. Er installiert **nicht** Samba als aktiven Dienst und ist kein vollständiger End-to-End-Test.
 
 Auf einem frischen Debian erzeugt `install.sh` jetzt zusätzlich `/srv/samba-shares`, prüft beide systemd-Dienste und startet die PDF-Ausgabetests.
 

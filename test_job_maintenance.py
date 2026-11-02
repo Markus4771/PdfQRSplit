@@ -1,5 +1,6 @@
 """Regression checks for missing-file flags and retention cleanup."""
 import json
+import contextlib
 import sqlite3
 import tempfile
 import unittest
@@ -23,7 +24,7 @@ class HistoryTest(unittest.TestCase):
     def test_retention_preserves_fingerprint(self):
         with tempfile.TemporaryDirectory() as tmp:
             db=Path(tmp)/"test.db"
-            with sqlite3.connect(db) as con:
+            with contextlib.closing(sqlite3.connect(db)) as con:
                 con.execute("CREATE TABLE jobs (signature TEXT PRIMARY KEY,profile_id INTEGER,file TEXT,status TEXT,details TEXT,updated_at TEXT)")
                 ensure(con)
                 old=(datetime.now(timezone.utc)-timedelta(days=200)).strftime("%Y-%m-%d %H:%M:%S")
@@ -33,6 +34,6 @@ class HistoryTest(unittest.TestCase):
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM jobs").fetchone()[0],0)
                 self.assertEqual(con.execute("SELECT COUNT(*) FROM archived_signatures").fetchone()[0],1)
             save_retention(db,30)
-            with sqlite3.connect(db) as con:
+            with contextlib.closing(sqlite3.connect(db)) as con:
                 self.assertEqual(retention_days(con),30)
 if __name__=="__main__":unittest.main()

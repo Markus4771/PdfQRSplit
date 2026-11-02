@@ -38,8 +38,16 @@ def sections(count, markers, keep):
     if current:result.append(current)
     return result
 
-def run(source, out_dir, qr_text, options, output_stem=None):
+def run(source, out_dir, qr_text, options, output_stem=None, origin=None):
+    """Process one PDF.
+
+    `source` is the file that is read. `origin` is the path the operator knows
+    the document by, e.g. the scanner file in the input share. The DATEV
+    registry records the origin so that review and duplicate lookups find the
+    entry again, even when the processed bytes come from a temporary snapshot.
+    """
     source=Path(source).resolve(strict=True)
+    origin=Path(origin).resolve() if origin else source
     target=Path(out_dir).resolve()
     target.mkdir(parents=True,exist_ok=True)
     if source.suffix.lower()!=".pdf":raise ValueError("Nur PDF-Dateien")
@@ -87,10 +95,10 @@ def run(source, out_dir, qr_text, options, output_stem=None):
             generated.append((staged,final))
         # Hard-link fully staged files into place, without exposing partial PDFs.
         if options.get("datev_mode"):
-            handed=publish_datev(generated,target,options.get("datev_registry","/var/lib/qrscan/datev.sqlite3"),source)
-            return {"source":str(source),"qr_pages":[x+1 for x in markers],**handed,"datev_mode":True}
+            handed=publish_datev(generated,target,options.get("datev_registry","/var/lib/qrscan/datev.sqlite3"),origin)
+            return {"source":str(origin),"qr_pages":[x+1 for x in markers],**handed,"datev_mode":True}
         publish(generated,target)
-    return {"source":str(source),"qr_pages":[x+1 for x in markers],"outputs":[str(f) for _,f in generated]}
+    return {"source":str(origin),"qr_pages":[x+1 for x in markers],"outputs":[str(f) for _,f in generated]}
 
 def main():
     p=argparse.ArgumentParser(description="QR-Code basierte PDF-Verarbeitung für einen Einzelauftrag")

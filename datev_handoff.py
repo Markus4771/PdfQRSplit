@@ -1,7 +1,7 @@
 """Fail-closed DATEV handoff. Exact-byte deduplication; not a DATEV upload receipt."""
 import hashlib
 import os
-import sqlite3
+import sqlite_util
 from pathlib import Path
 from datev_visual import fingerprints,near,encode,decode
 
@@ -31,7 +31,7 @@ def publish_datev(generated,destination,registry,source):
     registry=Path(registry)
     review_dir=registry.parent/"datev-review"
     sent=[]; duplicates=[]
-    with sqlite3.connect(registry,timeout=30,isolation_level=None) as con:
+    with sqlite_util.session(registry,timeout=30,isolation_level=None) as con:
         con.execute("PRAGMA synchronous=FULL")
         ensure(con)
         for staged,_ in generated:

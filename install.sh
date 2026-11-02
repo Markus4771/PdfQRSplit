@@ -13,7 +13,7 @@ PY
 . /etc/os-release
 if [[ "${ID:-}" != debian ]]; then echo "Warnung: nur für Debian vorgesehen (gefunden: ${ID:-unbekannt})"; fi
 export DEBIAN_FRONTEND=noninteractive
-echo "[1/7] Debian Pakete installieren"
+echo "[1/8] Debian Pakete installieren"
 if ! apt-get update; then
   # Fluent Bit's upstream apt mirror can be temporarily inconsistent.
   # Disable ONLY that source, then retry the normal Debian update once.
@@ -28,11 +28,11 @@ if ! apt-get update; then
 fi
 apt-get install -y --no-install-recommends \
   ca-certificates python3 python3-venv python3-pip python3-dev \
-  build-essential pkg-config libzbar0 libzbar-dev libgl1 libglib2.0-0 \
+  build-essential pkg-config libzbar0t64 libzbar-dev libgl1 libglib2.0-0t64 \
   poppler-utils ghostscript qpdf imagemagick default-jre-headless \
   ocrmypdf tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
   samba smbclient acl python3-cryptography sudo git curl
-echo "[2/7] Benutzer und Verzeichnisse"
+echo "[2/8] Benutzer und Verzeichnisse"
 getent group qrscan-share-read >/dev/null || groupadd --system qrscan-share-read
 id -u qrscan >/dev/null 2>&1 || useradd --system --home-dir /var/lib/qrscan --shell /usr/sbin/nologin qrscan
 usermod -aG qrscan-share-read qrscan
@@ -67,6 +67,8 @@ install -m 0644 test_profile_logs.py /opt/qrscan/test_profile_logs.py
 install -m 0644 test_company_processing.py /opt/qrscan/test_company_processing.py
 install -m 0644 test_company_admin.py /opt/qrscan/test_company_admin.py
 install -m 0644 safe_publish.py /opt/qrscan/safe_publish.py
+install -m 0644 sqlite_util.py /opt/qrscan/sqlite_util.py
+install -m 0644 test_review_fixes.py /opt/qrscan/test_review_fixes.py
 install -m 0644 datev_handoff.py /opt/qrscan/datev_handoff.py
 install -m 0644 original_archive.py /opt/qrscan/original_archive.py
 install -m 0644 test_original_archive.py /opt/qrscan/test_original_archive.py
@@ -84,20 +86,20 @@ install -d -o root -g root -m 0755 /usr/local/lib/qrscan
 install -m 0755 -o root -g root samba_helper.py /usr/local/lib/qrscan/samba_helper.py
 install -m 0755 -o root -g root samba_rpc.py /usr/local/lib/qrscan/samba_rpc.py
 install -m 0755 sync_permissions.py /opt/qrscan/sync_permissions.py
-echo "[3/7] Python-Umgebung und optionale PDF-Bibliotheken"
+echo "[3/8] Python-Umgebung und optionale PDF-Bibliotheken"
 python3 -m venv /opt/qrscan/venv
 /opt/qrscan/venv/bin/python -m pip install --disable-pip-version-check --upgrade pip
 # Installiert die Python-Abhängigkeiten für QR- und PDF-Analyse.
 /opt/qrscan/venv/bin/pip install --disable-pip-version-check \
-  pypdf pypdf4 zxing pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
+  pypdf pymupdf opencv-python-headless pyzbar pillow fastapi uvicorn \
   "scan-pdf-cleaner-cli==1.0.0"
-echo "[4/7] QR-Trennwerkzeug bereitstellen"
+echo "[4/8] QR-Trennwerkzeug bereitstellen"
 # Externe QR-Engine getrennt halten, sodass Updates der eigenen App sie nicht überschreiben.
 if [[ ! -d /opt/qrscan/vendor/PdfQRSplit/.git ]]; then
   install -d -m 0755 /opt/qrscan/vendor
   git clone https://github.com/adlerweb/PdfQRSplit.git /opt/qrscan/vendor/PdfQRSplit
 fi
-echo "[5/7] Erstanmeldung einrichten (bestehende Zugangsdaten bleiben erhalten)"
+echo "[5/8] Erstanmeldung einrichten (bestehende Zugangsdaten bleiben erhalten)"
 if [[ ! -f /var/lib/qrscan/auth.json ]]; then
   python3 - <<'PY'
 import hashlib,json,secrets
@@ -113,7 +115,7 @@ print("Passwort sicher verwahren. Bei Erstanmeldung muss es geändert werden.")
 PY
   chown qrscan:qrscan /var/lib/qrscan/auth.json
 fi
-echo "[6/7] Samba-Leseanbindung (bestehende Samba-Konfiguration nicht überschreiben)"
+echo "[6/8] Samba-Leseanbindung (bestehende Samba-Konfiguration nicht überschreiben)"
 # Der bestehende Samba-Manager kann bereits konfiguriert sein. Seine Include-Datei wird
 # lediglich für die QR-GUI lesbar gemacht; es werden keine Freigaben angelegt oder geändert.
 if [[ -f /etc/samba/qrscan-shares.conf ]]; then
@@ -180,7 +182,7 @@ PY
 testparm -s >/dev/null
 # Legacy sudo rule is no longer necessary; privileges live in a separate daemon.
 rm -f /etc/sudoers.d/qrscan-samba
-echo "[7/7] systemd-Dienst installieren"
+echo "[7/8] systemd-Dienst installieren"
 cat >/etc/systemd/system/qrscan-web.service <<'EOF'
 [Unit]
 Description=QR Scan Manager configuration GUI
@@ -195,6 +197,7 @@ SupplementaryGroups=qrscan-share-read
 WorkingDirectory=/opt/qrscan
 Environment=QRSCAN_BIND=0.0.0.0
 Environment=QRSCAN_PORT=8086
+# Hinter einem TLS-Reverse-Proxy optional: Environment=QRSCAN_TRUSTED_ORIGINS=https://scan.firma.de
 ExecStart=/opt/qrscan/venv/bin/python /opt/qrscan/app.py
 Restart=on-failure
 RestartSec=5
@@ -261,7 +264,7 @@ systemctl restart qrscan-web.service
 systemctl is-active --quiet qrscan-samba.service || { journalctl -u qrscan-samba -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-web.service || { journalctl -u qrscan-web -n 40 --no-pager; exit 1; }
 systemctl is-active --quiet qrscan-watcher.service || { journalctl -u qrscan-watcher -n 40 --no-pager; exit 1; }
-/opt/qrscan/venv/bin/python -m unittest -v test_safe_publish test_retry_policy test_output_naming test_job_maintenance test_datev_handoff test_datev_visual test_original_archive test_company_admin test_company_processing test_profile_logs test_company_monitor test_review_queue test_review_pdf test_duplicate_review test_notifications test_company_web_access
+    /opt/qrscan/venv/bin/python -m unittest discover -v -s /opt/qrscan -p 'test_*.py'
 echo "[8/8] Fluent Bit (nur lokal, ohne DATEV-PC-Anbindung) installieren"
 if ! bash ./install_fluent_bit.sh; then
   echo "WARNUNG: Fluent Bit konnte nicht installiert/aktualisiert werden; QR Scan Manager bleibt betriebsbereit." >&2

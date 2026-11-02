@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Monitor Samba input shares and execute profile-based PDF processing."""
+import contextlib
 import hashlib
 import json
 import fcntl
@@ -54,7 +55,9 @@ def get_shares():
     save()
     return result
 
+@contextlib.contextmanager
 def connect():
+    """Yield a migrated jobs database connection and close it afterwards."""
     con=sqlite3.connect(DB,timeout=10)
     con.execute("""CREATE TABLE IF NOT EXISTS jobs (
        signature TEXT PRIMARY KEY, profile_id INTEGER, file TEXT NOT NULL,
@@ -72,7 +75,10 @@ def connect():
     )""")
     migrate(con)
     con.commit()
-    return con
+    try:
+        yield con
+    finally:
+        con.close()
 
 def configs(con):
     return con.execute("SELECT "+SELECT+" FROM profiles ORDER BY id").fetchall()
@@ -173,7 +179,7 @@ def once(con,profile,shares,seen):
                     if file_hash(path)!=file_hash(snapshot):
                         raise RuntimeError("Source differs from snapshot")
                     source_sha256=file_hash(snapshot).hex()
-                    result=run(snapshot,destination,qr,opts,output_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0))
+                    result=run(snapshot,destination,qr,opts,output_stem=output_stem(path.stem,destination,digest,replay_count if manual_replay else 0),origin=path)
                 # Preserve the archive before removing an original from the input.
                 # Only DATEV profiles with an exclusive input share qualify.
                 archive_ready=None

@@ -54,6 +54,7 @@ Weboberfläche im LAN: `http://SERVER-IP:8086/` (im bisherigen Testaufbau `http:
 
 - Firmen-Webzugänge haben **nur lesenden Zugriff** auf `/review`, `/datev-review` und erlaubte Original-PDFs; Administratoraktionen und DATEV-Freigaben sind ausgeschlossen.
 - Basic-Authentifizierung über HTTP ist **nicht ausreichend für Zugriff über das Internet**; unbedingt TLS/HTTPS und Zugangsbeschränkung einsetzen.
+- Der Origin-Schutz akzeptiert den Hostnamen der Anfrage auch bei `https://`. Hinter einem TLS-Reverse-Proxy ist daher keine Zusatzkonfiguration nötig. Betreibt der Proxy unter einem anderen Namen, die erlaubten Herkünfte in der systemd-Umgebung eintragen: `Environment=QRSCAN_TRUSTED_ORIGINS=https://scan.firma.de,https://alt.firma.de` (nach `systemctl daemon-reload` und Neustart des Dienstes).
 - SMTP-Passwort liegt in der zugriffsbeschränkten lokalen Datenbank; Datensicherungen entsprechend schützen.
 - Ein PDF im DATEV-Ausgang ist **kein** nachgewiesener DATEV-Upload.
 - Bei unklarer Übertragung nicht erneut senden, bis der Belegtransfer-Status geprüft ist.
