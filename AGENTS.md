@@ -69,6 +69,21 @@ identischem Hostnamen **und Port**. Hinter einem TLS-Reverse-Proxy ist daher
 keine Zusatzkonfiguration nötig. Abweichende Proxy-Namen werden ueber
 `QRSCAN_TRUSTED_ORIGINS` (kommagetrennt) erlaubt.
 
+## Fallen, die schon einmal zugeschlagen haben
+
+- **Einrueckung nach `with` umstellen:** Beim Ersetzen von `with db() as c:` durch
+  `with db_session() as c:` muss der gesamte Block auf derselben Ebene bleiben.
+  Sonst landen die Zuweisungen ausserhalb des Blocks und die Route endet mit
+  `UnboundLocalError`. Deshalb gibt es Routen-Smoke-Tests in
+  `test_review_fixes.py` (`RouteSmokeTests`).
+- **Isolations-Level:** `sqlite_util.session()` nutzt standardmaessig `""`
+  (sqlite3-Standard). `isolation_level=None` heisst Autocommit und schaltet
+  Rollback ab. Nur `datev_handoff.py` setzt es bewusst.
+- **Ports gehoeren zum Origin:** `origin_allowed()` vergleicht Host **und** Port.
+  `https://host:8443` passt nicht zu `Host: host`.
+- **CI braucht `scan_pdf_cleaner`:** `worker.py` importiert es direkt. Die
+  Debian-13-CI installiert es deshalb ueber pip in ein venv.
+
 ## Konventionen
 
 - Module werden in `install.sh` mit `install -m 0644` nach `/opt/qrscan` kopiert.
