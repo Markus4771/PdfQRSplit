@@ -20,8 +20,9 @@ bash -n install.sh
 python3 -m compileall -q .
 ```
 
-Lokale Testumgebung braucht: `pymupdf`, `pyzbar` + Systembibliothek `libzbar0`,
-`scan-pdf-cleaner-cli==1.0.0`, `pypdf`.
+Lokale Testumgebung braucht: `pymupdf`, `pillow`, `pyzbar` + Systembibliothek
+`libzbar0t64` (Debian 13), `scan-pdf-cleaner-cli==1.0.0`, `pypdf`, `pypdfium2`,
+`opencv-python-headless`.
 
 ## Aufbau
 
