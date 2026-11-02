@@ -84,6 +84,27 @@ keine Zusatzkonfiguration nötig. Abweichende Proxy-Namen werden ueber
 - **CI braucht `scan_pdf_cleaner`:** `worker.py` importiert es direkt. Die
   Debian-13-CI installiert es deshalb ueber pip in ein venv.
 
+## Debian 13 (trixie) heisst anders als Debian 12
+
+Trixie hat die 64-Bit-Bibliotheken umbenannt und liefert kein `pyzbar`:
+
+| alt (Debian 12) | neu (Debian 13) |
+| --- | --- |
+| `libzbar0` | `libzbar0t64` |
+| `libglib2.0-0` | `libglib2.0-0t64` |
+| `python3-pyzbar` | gibt es nicht mehr (`python3-zbar` liefert `zbar`, nicht `pyzbar`) |
+
+`pyzbar` kommt daher aus pip. Ein falscher Paketname bricht `apt-get` mit
+Exit-Code 100 ab, ohne eine hilfreiche Meldung.
+
+Zusaetzlich: apt-Pakete landen im **System**-Python. Ein venv erbt deren
+`sys.path` nicht, also braucht das venv `pymupdf` und `pillow` selbst,
+sonst fehlen `fitz` und `PIL`.
+
+Paketnamen immer gegen `deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.gz`
+pruefen, nicht gegen `packages.debian.org` - die Webseite antwortet auch
+fuer nicht existierende Pakete mit HTTP 200.
+
 ## Konventionen
 
 - Module werden in `install.sh` mit `install -m 0644` nach `/opt/qrscan` kopiert.
