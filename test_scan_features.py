@@ -30,7 +30,8 @@ class ScanFeatureTests(unittest.TestCase):
             (d/'escape.pdf').symlink_to('/etc/passwd')
             with self.assertRaises(FileNotFoundError):find_document(self.con,'anna',False,1,'escape.pdf',tmp)
     def test_card_ocr_draft(self):
-        found=parse_card_text("Erika Muster\\nMuster GmbH\\nerika@example.org\\n+49 123 456789")
+        # Tesseract liefert echte Zeilenumbrueche, keine literale "\n"-Sequenzen.
+        found=parse_card_text("Erika Muster\nMuster GmbH\nerika@example.org\n+49 123 456789")
         self.assertEqual(found["name"],"Erika Muster")
         self.assertEqual(found["email"],"erika@example.org")
         self.assertIn("123",found["phone"])
