@@ -23,10 +23,29 @@ Die Installation richtet Webdienst, Watcher und Samba-Verwaltungsdienst ein. Bit
 
 ## Bestehende Installation aktualisieren
 
+Vor dem Update lokales Backup von Datenbank und Samba-Konfiguration anlegen:
+
+```bash
+cp /var/lib/qrscan/auth.json /var/lib/qrscan/auth.json.bak-$(date +%Y%m%d-%H%M%S)
+find /var/lib/qrscan -name '*.sqlite3' -exec cp {} {}.bak-$(date +%Y%m%d-%H%M%S) \;
+cp /etc/samba/qrscan-shares.conf /etc/samba/qrscan-shares.conf.bak-$(date +%Y%m%d-%H%M%S)
+cp /etc/samba/smb.conf /etc/samba/smb.conf.bak-$(date +%Y%m%d-%H%M%S)
+```
+
+Update ausführen:
+
 ```bash
 cd /root/PdfQRSplit
 git pull --ff-only
 bash install.sh
+```
+
+Der Installer ist idempotent. Er sichert `smb.conf` selbst (siehe Schritt 6/8). Er fasst `auth.json`, die SQLite-Register und `/etc/samba/qrscan-shares.conf` nur lesend bzw. mit `touch` an, wenn sie fehlen - vorhandene Konfiguration und Daten bleiben erhalten.
+
+Tests des Installer-Standes:
+
+```bash
+/opt/qrscan/venv/bin/python -m unittest discover -v -s /opt/qrscan -p 'test_*.py'
 ```
 
 Dienste prüfen:
@@ -35,8 +54,6 @@ Dienste prüfen:
 systemctl status qrscan-web qrscan-watcher qrscan-samba --no-pager
 journalctl -u qrscan-web -u qrscan-watcher -u qrscan-samba -n 100 --no-pager
 ```
-
-Weboberfläche im LAN: `http://SERVER-IP:8086/` (im bisherigen Testaufbau `http://192.168.0.55:8086/`). Das Administratorpasswort beim ersten Login ändern, wenn die Oberfläche dies verlangt.
 
 ## Ersteinrichtung
 
