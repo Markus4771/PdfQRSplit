@@ -3,6 +3,7 @@
 import importlib
 import os
 import sqlite3
+import sqlite_util
 import subprocess
 import sys
 import tempfile
@@ -36,7 +37,7 @@ def pdf_deps():
 def db_check():
     path=DATA/"profiles.sqlite3"
     if not path.exists():return False
-    with sqlite3.connect(f"file:{path}?mode=ro",uri=True) as db:
+    with sqlite_util.session(f"file:{path}?mode=ro",uri=True) as db:
         names={x[0] for x in db.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     return {"profiles","settings"}.issubset(names)
 

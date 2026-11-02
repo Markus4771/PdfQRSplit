@@ -1,5 +1,5 @@
 """Shared job listing and explicit retry controls for QR Scan Manager."""
-import sqlite3
+import sqlite_util
 import ast
 import json
 from datetime import datetime, timedelta, timezone
@@ -53,7 +53,7 @@ def retention_days(con):
 def save_retention(database, days):
     if not isinstance(days,int) or not 7<=days<=3650:
         raise ValueError("Aufbewahrung: 7 bis 3650 Tage")
-    with sqlite3.connect(database,timeout=10) as con:
+    with sqlite_util.session(database) as con:
         con.execute("INSERT INTO settings(key,value) VALUES('job_retention_days',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",(str(days),))
         con.commit()
 
@@ -74,7 +74,7 @@ def cleanup_jobs(con):
     return cursor.rowcount
 
 def dashboard(database):
-    with sqlite3.connect(database, timeout=10) as con:
+    with sqlite_util.session(database) as con:
         ensure(con)
         retention=retention_days(con)
         totals=dict(con.execute("SELECT status, COUNT(*) FROM jobs GROUP BY status").fetchall())
@@ -87,7 +87,7 @@ def dashboard(database):
 def request_retry(database,signature):
     if len(signature)!=64 or any(c not in "0123456789abcdef" for c in signature):
         return False,"Ungültige Auftragskennung"
-    with sqlite3.connect(database,timeout=10) as con:
+    with sqlite_util.session(database) as con:
         ensure(con)
         row=con.execute("SELECT status,file FROM jobs WHERE signature=?",(signature,)).fetchone()
         if not row or row[0] not in ("done","error","interrupted"):

@@ -4,6 +4,7 @@ Run manually as root after adding/changing profiles. Never recurses into files.
 """
 import os
 import sqlite3
+import sqlite_util
 import subprocess
 import sys
 from pathlib import Path
@@ -14,7 +15,7 @@ def main():
         raise SystemExit("Als root ausführen")
     if not DB.is_file():
         raise SystemExit("Profil-Datenbank fehlt")
-    with sqlite3.connect(f"file:{DB}?mode=ro",uri=True) as db:
+    with sqlite_util.session(f"file:{DB}?mode=ro",uri=True) as db:
         rows=db.execute("SELECT input_share,output_share FROM profiles").fetchall()
     shares=get_shares()
     assignments={}

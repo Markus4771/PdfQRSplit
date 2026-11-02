@@ -1,4 +1,5 @@
 """Basic DATEV handoff regression tests (no Windows agent needed)."""
+import contextlib
 import sqlite3
 import tempfile
 import unittest
@@ -22,7 +23,7 @@ class DatevTest(unittest.TestCase):
             self.assertEqual(len(one["outputs"]),1)
             self.assertEqual(len(two["outputs"]),0)
             self.assertEqual(len(two["duplicates"]),1)
-            with sqlite3.connect(registry) as con:
+            with contextlib.closing(sqlite3.connect(registry)) as con:
                 self.assertEqual(con.execute("SELECT count(*) FROM datev_invoices").fetchone()[0],1)
     def test_missing_handoff_file_still_never_released_again(self):
         with tempfile.TemporaryDirectory() as root:
