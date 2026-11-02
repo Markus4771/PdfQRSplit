@@ -52,6 +52,10 @@ Unter `/review` werden dokumentierte PDF-Verarbeitungsprobleme firma-/belegartbe
 
 Der Eintrag im DATEV-Ausgang bedeutet **lokal bereitgestellt**, nicht „von DATEV erfolgreich übernommen“. Die tatsächliche Überwachung des Windows-DATEV-Belegtransfers ist noch offen und in [BACKLOG.md](BACKLOG.md) erfasst.
 
+## Prüffall-Verlauf (Entwicklungsbranch)
+Jede tatsächliche Änderung von Prüfstatus oder Prüfnotiz unter `/review` wird zusätzlich in der SQLite-Tabelle `review_events` mit UTC-Zeitpunkt, altem und neuem Wert sowie Bearbeiter gespeichert. Unverändertes erneutes Speichern erzeugt keinen weiteren Eintrag. Die letzten zehn Ereignisse je Prüffall können in der aufklappbaren Historie eingesehen werden. Bestehende Prüffälle werden nicht rückwirkend mit erfundenen Ereignissen versehen. Ereignisse sind durch die Anwendung nicht editierbar, aber noch **kein manipulationssicheres Auditlog** (DB-Administratoren können SQLite ändern). Der bisherige Administratorzugriff wird beibehalten; die Anzeige ist auch für Firmenbenutzer nur im Rahmen ihrer bestehenden Firmenberechtigungen sichtbar. Keine automatische DATEV-Übertragung oder Freigabe.
+Vor einer Installation Tests ausführen: `python3 -m unittest test_review_queue.py`. Deployment erst nach Backup und Freigabe.
+
 ## Technische Grenzen und Tests
 
 Die Fehlerkategorien basieren teilweise auf Fehlermeldungen; eine verlässliche semantische Rechnungserkennung und OCR-Qualitätsbewertung sind noch nicht vorhanden. Für den Produktivbetrieb müssen mindestens Benutzer-/Firmenisolation, Samba-Rechte, Testscan, Originalarchiv, LOG, Dublettenschutz, SMTP-Versand und der tatsächliche Windows-Belegtransfer überprüft werden.

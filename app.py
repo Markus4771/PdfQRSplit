@@ -21,6 +21,7 @@ import company_processing
 import company_preflight
 import review_queue
 import review_pdf
+import review_editor
 import duplicate_review
 import notifications
 import company_web_access
@@ -153,6 +154,16 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(payload)
             return
+        if route.path=="/review-editor":
+            if self.password_needed():return self.password_form()
+            if self.actor()[0]!="admin":return self.page("Keine Berechtigung",403)
+            signature=parse_qs(route.query).get("signature",[""])[0]
+            try:
+                with db() as c:
+                    images=review_editor.thumbnails(c,signature,ROOT,DATA/"original-archive")
+                return self.page(review_editor.editor_html(signature,images))
+            except (ValueError,FileNotFoundError,OSError) as exc:
+                return self.page("<h1>Vorschau nicht verfügbar</h1><p>"+html.escape(str(exc))+"</p>",400)
         if route.path=="/duplicate-review":
             if self.password_needed():return self.password_form()
             signature=parse_qs(route.query).get("signature",[""])[0]
@@ -263,6 +274,7 @@ class Handler(BaseHTTPRequestHandler):
                 if permitted is not None and company and (not company.isdigit() or int(company) not in permitted):return self.page("Keine Berechtigung",403)
                 try:items=review_queue.records(c,company,doctype,state,allowed_companies=permitted)
                 except ValueError:return self.page("Ungültige Filter",400)
+                histories={item["signature"]:review_queue.history(c,item["signature"],10) for item in items}
             esc=lambda v:html.escape(str(v),quote=True)
             page="<header><h1>PDF-Prüfwarteschlange</h1>"+("<a href='/companies'>Firmenverwaltung</a>" if self.actor()[0]=="admin" else "<a href='/datev-review'>DATEV-Prüfbereich</a>")+"</header>"
             page+="<section><form method='get' action='/review'><label>Firma</label><select name='company'><option value=''>Alle Firmen</option>"
@@ -280,10 +292,16 @@ class Handler(BaseHTTPRequestHandler):
                 page+="<article><h3>"+esc(item["filename"])+"</h3><p>"+esc(item["company"])+" · "+esc(item["doctype"])+" · "+esc(item["severity"])+" · "+esc(item["category"])+"</p>"
                 page+="<p>"+esc(item["message"])+"</p><p class='small'>"+esc(item["updated"])+" · Status: "+esc(item["state"])+"</p>"
                 page+="<p><a href='/review-pdf?signature="+esc(item["signature"])+"' target='_blank' rel='noopener'>Original-PDF ansehen</a></p>"
+                changes=histories.get(item["signature"],[])
+                if changes:
+                    page+="<details><summary>Prüfverlauf ("+str(len(changes))+" letzte Änderungen)</summary><ol>"
+                    for change in changes:
+                        page+="<li>"+esc(change["timestamp"])+" · "+esc(change["actor"])+" · "+esc(change["old_state"])+" → "+esc(change["new_state"])+"<p>"+esc(change["new_note"])+"</p></li>"
+                    page+="</ol></details>"
                 if self.actor()[0]!="admin":
                     page+="</article><hr>"
                     continue
-                page+="<p><a href='/review-draft?signature="+esc(item["signature"])+"'>Korrekturentwurf herunterladen</a></p>"
+                page+="<p><a href='/review-editor?signature="+esc(item["signature"])+"'>Interaktiver Seiteneditor</a> · <a href='/review-draft?signature="+esc(item["signature"])+"'>Korrekturentwurf herunterladen</a></p>"
                 if item["category"]=="duplicate":
                     page+="<p><a href='/duplicate-review?signature="+esc(item["signature"])+"'>Dublettenvergleich und Entscheidung</a></p>"
                 if self.actor()[0]=="admin":
@@ -378,7 +396,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self.guard():return
-        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password"):return self.page("Nicht gefunden",404)
+        if self.path not in ("/password","/qr","/add","/delete","/retry","/smb-create","/smb-update","/smb-password","/smb-delete","/smb-protect-datev","/profile-update","/retention","/company-create","/company-types","/company-user-create","/company-user-register","/company-access","/company-provision","/company-users-save","/company-delete","/company-user-delete","/company-processing","/review-update","/review-draft-create","/review-editor-save","/duplicate-decision","/notifications-save","/company-user-email","/company-web-password"):return self.page("Nicht gefunden",404)
         origin=self.headers.get("Origin")
         if origin and origin != "http://"+self.headers.get("Host",""):return self.page("Ungültiger Ursprung",403)
         try:
@@ -387,6 +405,19 @@ class Handler(BaseHTTPRequestHandler):
             data=parse_qs(self.rfile.read(length).decode(),keep_blank_values=True)
             get=lambda k:data.get(k,[""])[0]
         except (ValueError,UnicodeDecodeError):return self.page("Ungültige Eingabe",400)
+        if self.path=="/review-editor-save":
+            if self.password_needed():return self.password_form()
+            try:
+                with db() as c:
+                    review_pdf.prepare_editor_draft(c,get("signature"),DATA/"review-drafts",ROOT,DATA/"original-archive",get("plan"))
+                    review_queue.set_case(c,get("signature"),"in_progress","Interaktiver Korrekturentwurf erstellt; nicht an DATEV übergeben")
+                    c.commit()
+            except (ValueError,OSError,sqlite3.Error) as exc:
+                return self.page("<h1>Seitenkorrektur fehlgeschlagen</h1><p>"+html.escape(str(exc))+"</p><a href='/review'>Zurück</a>",400)
+            self.send_response(303)
+            self.send_header("Location","/review-draft?signature="+quote(get("signature")))
+            self.end_headers()
+            return
         if self.path=="/review-draft-create":
             if self.password_needed():return self.password_form()
             try:

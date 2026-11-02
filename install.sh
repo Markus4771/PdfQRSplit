@@ -59,6 +59,7 @@ install -m 0644 notifications.py /opt/qrscan/notifications.py
 install -m 0644 test_notifications.py /opt/qrscan/test_notifications.py
 install -m 0644 review_queue.py /opt/qrscan/review_queue.py
 install -m 0644 review_pdf.py /opt/qrscan/review_pdf.py
+install -m 0644 review_editor.py /opt/qrscan/review_editor.py
 install -m 0644 duplicate_review.py /opt/qrscan/duplicate_review.py
 install -m 0644 test_duplicate_review.py /opt/qrscan/test_duplicate_review.py
 install -m 0644 test_review_pdf.py /opt/qrscan/test_review_pdf.py
